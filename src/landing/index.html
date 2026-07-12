@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabflow - AI Powered Browser Manager</title>
+    <link rel="icon" type="image/svg+xml" href="/icon.svg">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="blob-bg"></div>
+    <div class="blob-bg blob-2"></div>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#3b82f6" />
+                      <stop offset="100%" stop-color="#2563eb" />
+                    </linearGradient>
+                  </defs>
+                  <rect width="24" height="24" rx="4" fill="url(#bgGrad)" />
+                  <g stroke="#ffffff">
+                    <rect x="8" y="4" width="14" height="12" rx="2" stroke-width="1.5" opacity="0.4" />
+                    <rect x="5" y="7" width="14" height="12" rx="2" stroke-width="1.5" opacity="0.7" />
+                    <rect x="2" y="10" width="14" height="12" rx="2" stroke-width="1.5" fill="#ffffff" fill-opacity="0.1" />
+                    <path d="M4 14H14" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+                  </g>
+                </svg>
+                <span>Tabflow</span>
+            </div>
+            <a href="https://github.com/harish/tabflow" target="_blank" class="nav-link">
+                GitHub
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+        </header>
+
+        <main>
+            <!-- Mouse Parallax Background Shapes -->
+            <div class="floating-shapes">
+                <div class="shape shape-1" data-speed="-0.04"></div>
+                <div class="shape shape-2" data-speed="0.06"></div>
+                <div class="shape shape-3" data-speed="-0.03"></div>
+            </div>
+
+            <div class="hero">
+                <div class="hero-badge">Available for Chrome, Edge, Brave & Opera</div>
+                <h1 class="hero-title">Your browser extension, <br><span class="gradient-text">supercharged by AI.</span></h1>
+                <p class="hero-subtitle">Tabflow is an AI-powered extension that organizes tabs into dedicated workspaces, schedules folders to open automatically, secures private content with AES-256 encryption, and lets your personal AI assistant control your browser for you.</p>
+                
+                <div class="cta-group">
+                    <a href="tabflow_extension.zip" download="tabflow_extension.zip" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                        Download .zip
+                    </a>
+                    <a href="#install" class="btn btn-secondary">Installation Guide</a>
+                </div>
+            </div>
+
+            <div class="minimal-features">
+                <div class="minimal-feature">
+                    <div class="minimal-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+                    </div>
+                    <div class="minimal-content">
+                        <h3>AI Assistant</h3>
+                        <p>Command your browser effortlessly. Simply type <strong>Close my YouTube tabs</strong>, <strong>Group my research</strong>, or <strong>Open my Work folder</strong> and let AI do the rest.</p>
+                    </div>
+                </div>
+
+                <div class="minimal-feature">
+                    <div class="minimal-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <div class="minimal-content">
+                        <h3>Secure Folders</h3>
+                        <p>Lock your private workspaces with AES-256 encryption. Not even the AI can read your locked tabs until you enter your password.</p>
+                    </div>
+                </div>
+
+                <div class="minimal-feature">
+                    <div class="minimal-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div class="minimal-content">
+                        <h3>Smart Scheduling</h3>
+                        <p>Set a timer to automatically open your Morning Routine folder at 9 AM, and auto-close social media tabs after 2 hours.</p>
+                    </div>
+                </div>
+
+                <div class="minimal-feature">
+                    <div class="minimal-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+                    </div>
+                    <div class="minimal-content">
+                        <h3>Smart Launcher</h3>
+                        <p>Hit <strong>Cmd/Ctrl + K</strong> to instantly open the launcher. You can type AI commands or use the search bar to access and manage all your saved workspaces.</p>
+                    </div>
+                </div>
+
+                <div class="minimal-feature">
+                    <div class="minimal-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <div class="minimal-content">
+                        <h3>Quick Access Popup</h3>
+                        <p>Click the extension icon to view up to 5 favorite pinned folders. Instantly add tabs, open, close, or lock your most important folders with a single click.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="install" class="installation">
+                <h2>How to Install</h2>
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h4>Download the Zip</h4>
+                            <p>Click the download button above and extract the downloaded <code>tabflow_extension.zip</code> file into a folder on your computer.</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h4>Enable Developer Mode</h4>
+                            <p>Open your browser and navigate to the extensions page:<br>
+                            &bull; <code>chrome://extensions</code> (Chrome)<br>
+                            &bull; <code>edge://extensions</code> (Edge)<br>
+                            &bull; <code>brave://extensions</code> (Brave)<br>
+                            Then toggle <strong>"Developer mode"</strong> ON.</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h4>Load Unpacked</h4>
+                            <p>Click the <strong>"Load unpacked"</strong> button in the top left corner and select the folder you extracted in Step 1. The extension is now installed!</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h4>Allow in Incognito (Optional)</h4>
+                            <p>To use Tabflow in private tabs, click <strong>"Details"</strong> on the extension card and toggle ON <strong>"Allow in Incognito"</strong>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Built with ❤️ by Tabflow Open Source.</p>
+        </footer>
+    </div>
+    <script>
+        // Mouse Parallax Animation
+        document.addEventListener("mousemove", function(e) {
+            const shapes = document.querySelectorAll(".shape");
+            const x = (window.innerWidth / 2 - e.pageX);
+            const y = (window.innerHeight / 2 - e.pageY);
+
+            shapes.forEach(shape => {
+                const speed = shape.getAttribute("data-speed");
+                const xOffset = x * speed;
+                const yOffset = y * speed;
+                // Use translate3d for hardware acceleration
+                shape.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0)`;
+            });
+        });
+    </script>
+</body>
+</html>

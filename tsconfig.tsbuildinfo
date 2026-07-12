@@ -1,0 +1,1 @@
+{"root":["./src/vite-env.d.ts","./src/ai/llm.ts","./src/background/service-worker.ts","./src/content/extractor.ts","./src/dashboard/app.tsx","./src/dashboard/main.tsx","./src/popup/popup.tsx","./src/storage/db.ts","./src/utils/crypto.ts","./src/utils/url.ts"],"version":"6.0.3"}
