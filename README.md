@@ -2,6 +2,13 @@
 
 Tabflow is a next-generation browser extension designed to supercharge your productivity. It uses advanced AI to act as your personal assistant, organizing your tabs into dedicated workspaces, securing your private content with AES-256 encryption, and scheduling your workflow automatically.
 
+## 📸 Screenshots
+
+*(Drag and drop your 3 screenshots here when editing on GitHub!)*
+- **Workspace Chat:** `[Upload Chat Screenshot Here]`
+- **Folders Manager:** `[Upload Folders Screenshot Here]`
+- **Workspace Map:** `[Upload Map Screenshot Here]`
+
 ## ✨ Key Features
 
 - **🤖 AI Assistant Integration:** Talk to your built-in AI assistant directly from the dashboard. Ask it to organize tabs, close specific sites (e.g., "close all YouTube tabs"), or summarize content. The AI understands natural language and controls the browser for you!
