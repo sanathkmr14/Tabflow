@@ -91,3 +91,13 @@ To secure a workspace:
 - Framer Motion (for smooth animations)
 - Chrome Extensions API (Manifest V3)
 - WebCrypto API (for secure AES-256 encryption)
+
+---
+
+## 🤝 Collaborate & Connect
+
+Tabflow is an open-source project and we would absolutely love your help to make it even better! 
+
+Whether you want to fix a bug, suggest a new feature, or completely redesign a component, **feel free to collaborate, open an issue, or submit a pull request!** 
+
+If you just want to connect, chat about browser extensions, or share your thoughts, don't hesitate to reach out!
