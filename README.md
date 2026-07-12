@@ -32,13 +32,24 @@ Since Tabflow is currently in developer preview, you can easily install it local
 ### The Dashboard
 To open the main dashboard, simply click the Tabflow extension icon in your toolbar and click **"Open Dashboard"**. From here, you can drag and drop folders on the canvas, talk to the AI assistant on the right panel, and manage all your tabs.
 
-### Chatting with the AI
-In the dashboard, you will see a chat window on the right. You can ask it to perform actions like:
-- *"Close all my tabs except the dashboard."*
-- *"Move my Netflix tab from Inbox to Entertainment."*
-- *"Schedule the Work folder to open tomorrow at 9 AM."*
-Before the AI executes any command, a **Confirm Actions** popup will appear so you can review and approve exactly what it intends to do.
+### 🤖 AI Capabilities & Triggers
+The built-in AI isn't just a chatbot—it has direct access to control your browser and organize your data. You can trigger the following actions simply by asking the AI in natural language (either in the dashboard chat or via the `Cmd/Ctrl + K` Launcher):
 
+- **Tab Management**
+  - **Open Tabs:** *"Open youtube.com"* (`OPEN_TAB`)
+  - **Close Tabs:** *"Close all my tabs"*, *"Close all tabs with 'recipe' in the title"* (`CLOSE_TAB`)
+- **Workspace Organization**
+  - **Save Tabs:** *"Save my current tab to the Work folder"* (`ADD_TAB`)
+  - **Delete Tabs/Folders:** *"Remove Netflix from my Inbox"*, *"Delete the Old Project folder"* (`DELETE_TAB`, `DELETE_FOLDER`)
+  - **Move & Copy:** *"Move my Reddit tab from Work to Entertainment"* (`MOVE_TAB`, `COPY_TAB`)
+  - **Rename:** *"Rename my 'Misc' folder to 'Read Later'"* (`RENAME_FOLDER`)
+  - **Restore:** *"Open all the tabs in my Research folder"* (`RESTORE_FOLDER`)
+- **Automation & Security**
+  - **Scheduling:** *"Schedule my Work folder to open tomorrow at 9:00 AM"*, *"Close my Twitter tab in 15 minutes"* (`SCHEDULE_FOLDER`, `SCHEDULE_TAB`)
+  - **Clear Schedules:** *"Cancel the schedule for my Work folder"* (`CLEAR_SCHEDULE`)
+  - **Locking:** *"Lock my Private folder"* (`LOCK_FOLDER`)
+
+*Note: Before the AI executes any of these commands, a **Confirm Actions** popup will appear so you can review exactly what the AI intends to do and either Approve or Reject it.*
 ### Locking a Workspace
 To secure a workspace:
 1. Hover over the folder in the dashboard sidebar.
