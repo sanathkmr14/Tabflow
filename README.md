@@ -8,10 +8,12 @@
 
 Tabflow is a next-generation browser extension designed to supercharge your productivity. It uses advanced AI to act as your personal assistant, organizing your tabs into dedicated workspaces, securing your private content with AES-256 encryption, and scheduling your workflow automatically.
 
-<div align="left">
+<div align="center">
+  <br/>
   <a href="https://tabflow-extension.vercel.app/" target="_blank">
-    <img src="https://img.shields.io/badge/▶_Try_Tabflow_Now!-007BFF?style=for-the-badge&logoColor=white" alt="Try Tabflow Now!" />
+    <img src="https://img.shields.io/badge/Try_Now_➔-007BFF?style=for-the-badge&logoColor=white" alt="Try Now" />
   </a>
+  <br/>
 </div>
 
 ## 📸 Screenshots
