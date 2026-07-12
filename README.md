@@ -36,6 +36,7 @@ Since Tabflow is currently in developer preview, you can easily install it local
 6. Select the folder where you unzipped Tabflow.
 7. **Important:** Click on "Details" for the Tabflow extension and turn on **"Allow in Incognito"** so you can manage your private browsing tabs too.
 8. **You're done!** Pin the Tabflow icon to your toolbar for easy access.
+
 ## 🛠️ How to Use It
 
 ### The Dashboard
@@ -47,18 +48,21 @@ The built-in AI isn't just a chatbot—it has direct access to control your brow
 - **Tab Management**
   - **Open Tabs:** *"Open youtube.com"* (`OPEN_TAB`)
   - **Close Tabs:** *"Close all my tabs"*, *"Close all tabs with 'recipe' in the title"* (`CLOSE_TAB`)
+
 - **Workspace Organization**
   - **Save Tabs:** *"Save my current tab to the Work folder"* (`ADD_TAB`)
   - **Delete Tabs/Folders:** *"Remove Netflix from my Inbox"*, *"Delete the Old Project folder"* (`DELETE_TAB`, `DELETE_FOLDER`)
   - **Move & Copy:** *"Move my Reddit tab from Work to Entertainment"* (`MOVE_TAB`, `COPY_TAB`)
   - **Rename:** *"Rename my 'Misc' folder to 'Read Later'"* (`RENAME_FOLDER`)
   - **Restore:** *"Open all the tabs in my Research folder"* (`RESTORE_FOLDER`)
+
 - **Automation & Security**
   - **Scheduling:** *"Schedule my Work folder to open tomorrow at 9:00 AM"*, *"Close my Twitter tab in 15 minutes"* (`SCHEDULE_FOLDER`, `SCHEDULE_TAB`)
   - **Clear Schedules:** *"Cancel the schedule for my Work folder"* (`CLEAR_SCHEDULE`)
   - **Locking:** *"Lock my Private folder"* (`LOCK_FOLDER`)
 
 *Note: Before the AI executes any of these commands, a **Confirm Actions** popup will appear so you can review exactly what the AI intends to do and either Approve or Reject it.*
+
 ### Locking a Workspace
 To secure a workspace:
 1. Hover over the folder in the dashboard sidebar.
