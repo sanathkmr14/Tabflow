@@ -10,7 +10,7 @@ Tabflow is a next-generation browser extension designed to supercharge your prod
 
 <div align="left">
   <a href="https://tabflow-extension.vercel.app/" target="_blank">
-    <img src="https://img.shields.io/badge/▶_Try_Tabflow_Now!-22c55e?style=for-the-badge&logoColor=white" alt="Try Tabflow Now!" />
+    <img src="https://img.shields.io/badge/▶_Try_Tabflow_Now!-007BFF?style=for-the-badge&logoColor=white" alt="Try Tabflow Now!" />
   </a>
 </div>
 
