@@ -42,6 +42,13 @@ Since Tabflow is currently in developer preview, you can easily install it local
 ### The Dashboard
 To open the main dashboard, simply click the Tabflow extension icon in your toolbar and click **"Open Dashboard"**. From here, you can drag and drop folders on the canvas, talk to the AI assistant on the right panel, and manage all your tabs.
 
+### ⚡ Folder Quick Actions
+When you hover over any workspace folder in your dashboard, you gain access to powerful 1-click trigger buttons:
+- **▶️ Open / Close:** Instantly open all tabs in the folder, or close them all at once.
+- **🕒 Schedule Trigger:** Set an exact date and time for the folder to automatically open, close, or expire.
+- **🔗 Share:** Export and share your entire workspace setup with others.
+- **🔒 Lock & Secure:** Password-protect the folder to completely hide its contents until unlocked.
+
 ### 🤖 AI Capabilities & Triggers
 The built-in AI isn't just a chatbot—it has direct access to control your browser and organize your data. You can trigger the following actions simply by asking the AI in natural language (either in the dashboard chat or via the `Cmd/Ctrl + K` Launcher):
 
