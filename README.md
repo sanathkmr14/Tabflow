@@ -24,8 +24,8 @@ Since Tabflow is currently in developer preview, you can easily install it local
 4. Turn on **"Developer mode"** (usually a toggle in the top right corner).
 5. Click **"Load unpacked"** (or "Load unpacked extension").
 6. Select the folder where you unzipped Tabflow.
-7. **You're done!** Pin the Tabflow icon to your toolbar for easy access.
-
+7. **Important:** Click on "Details" for the Tabflow extension and turn on **"Allow in Incognito"** so you can manage your private browsing tabs too.
+8. **You're done!** Pin the Tabflow icon to your toolbar for easy access.
 ## 🛠️ How to Use It
 
 ### The Dashboard
