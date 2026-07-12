@@ -5,7 +5,8 @@ Tabflow is a next-generation browser extension designed to supercharge your prod
 ## 📸 Screenshots
 
 *(Drag and drop your 3 screenshots here when editing on GitHub!)*
-- **Workspace Chat:** `[Upload Chat Screenshot Here]`
+- **Workspace Chat:** 
+  ![Workspace Chat](workspace-chat.png)
 - **Folders Manager:** `[Upload Folders Screenshot Here]`
 - **Workspace Map:** `[Upload Map Screenshot Here]`
 
