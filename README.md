@@ -10,6 +10,7 @@ Tabflow is a next-generation browser extension designed to supercharge your prod
 - **🔒 AES-256 Folder Encryption:** Need privacy? Lock specific folders with a custom password. Tabs inside locked folders are hidden and inaccessible until you unlock them. Includes a recovery phrase fallback system.
 - **⏱️ Automated Tab & Folder Scheduling:** Schedule entire workspaces or individual tabs to open or close at specific dates and times automatically.
 - **⚡ Quick-Access Popup:** Click the Tabflow extension icon in your browser toolbar to instantly save your current tab into any of your folders without opening the full dashboard.
+- **🚀 Smart Launcher:** Hit `Cmd/Ctrl + K` to instantly open the launcher. You can type AI commands or use the search bar to access and manage all your saved workspaces.
 
 ## 🚀 Installation Guide
 
