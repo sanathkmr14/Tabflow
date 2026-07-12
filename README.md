@@ -15,7 +15,7 @@ Tabflow is a next-generation browser extension designed to supercharge your prod
 
 - **🤖 AI Assistant Integration:** Talk to your built-in AI assistant directly from the dashboard. Ask it to organize tabs, close specific sites (e.g., "close all YouTube tabs"), or summarize content. The AI understands natural language and controls the browser for you!
 - **📁 Smart Workspaces:** Group your open tabs into distinct, named folders (like "Work", "Entertainment", or "Research"). 
-- **🗺️ Interactive Workspace Map:** Visualize all your folders in a dynamic, draggable node-based canvas. Pin your most important folders to the top.
+- **🗺️ Interactive Workspace Map:** Visualize all your folders in a dynamic, draggable node-based canvas. Turn on **Domain Similarity Links** to instantly connect and group tabs from the same website. You can also seamlessly drag and drop tabs from one folder node to another to reorganize them!
 - **🔒 AES-256 Folder Encryption:** Need privacy? Lock specific folders with a custom password. Tabs inside locked folders are hidden and inaccessible until you unlock them. Includes a recovery phrase fallback system.
 - **⏱️ Automated Tab & Folder Scheduling:** Schedule entire workspaces or individual tabs to open or close at specific dates and times automatically.
 - **⚡ Quick-Access Popup:** Click the Tabflow extension icon in your browser toolbar to instantly save your current tab into any of your folders without opening the full dashboard.
