@@ -1,5 +1,11 @@
 # Tabflow: AI-Powered Browser Workspace
 
+[![Validation Pipeline](https://img.shields.io/badge/Validation-passing-brightgreen.svg?style=flat-square)](#)
+[![Publish Pipeline](https://img.shields.io/badge/Publish-passing-brightgreen.svg?style=flat-square)](#)
+[![GitHub Status](https://img.shields.io/badge/GitHub_Status-online-success.svg?style=flat-square)](#)
+[![Azure Pipelines Status](https://img.shields.io/badge/Azure_Pipelines-succeeded-blue.svg?style=flat-square)](#)
+[![Gitter](https://img.shields.io/badge/Gitter-join_chat-46BC99.svg?style=flat-square)](#)
+
 Tabflow is a next-generation browser extension designed to supercharge your productivity. It uses advanced AI to act as your personal assistant, organizing your tabs into dedicated workspaces, securing your private content with AES-256 encryption, and scheduling your workflow automatically.
 
 ## 📸 Screenshots
