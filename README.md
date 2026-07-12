@@ -1,73 +1,55 @@
-# React + TypeScript + Vite
+# Tabflow: AI-Powered Browser Workspace
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Tabflow is a next-generation browser extension designed to supercharge your productivity. It uses advanced AI to act as your personal assistant, organizing your tabs into dedicated workspaces, securing your private content with AES-256 encryption, and scheduling your workflow automatically.
 
-Currently, two official plugins are available:
+## ✨ Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **🤖 AI Assistant Integration:** Talk to your built-in AI assistant directly from the dashboard. Ask it to organize tabs, close specific sites (e.g., "close all YouTube tabs"), or summarize content. The AI understands natural language and controls the browser for you!
+- **📁 Smart Workspaces:** Group your open tabs into distinct, named folders (like "Work", "Entertainment", or "Research"). 
+- **🗺️ Interactive Workspace Map:** Visualize all your folders in a dynamic, draggable node-based canvas. Pin your most important folders to the top.
+- **🔒 AES-256 Folder Encryption:** Need privacy? Lock specific folders with a custom password. Tabs inside locked folders are hidden and inaccessible until you unlock them. Includes a recovery phrase fallback system.
+- **⏱️ Automated Tab & Folder Scheduling:** Schedule entire workspaces or individual tabs to open or close at specific dates and times automatically.
+- **⚡ Quick-Access Popup:** Click the Tabflow extension icon in your browser toolbar to instantly save your current tab into any of your folders without opening the full dashboard.
 
-## React Compiler
+## 🚀 Installation Guide
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Since Tabflow is currently in developer preview, you can easily install it locally in any Chromium-based browser (Chrome, Edge, Brave, Opera, Vivaldi).
 
-## Expanding the ESLint configuration
+1. Clone this repository or download the ZIP file.
+2. Unzip the downloaded file to a permanent folder on your computer.
+3. Open your browser and go to your extensions page:
+   - Chrome: `chrome://extensions/`
+   - Edge: `edge://extensions/`
+   - Brave: `brave://extensions/`
+4. Turn on **"Developer mode"** (usually a toggle in the top right corner).
+5. Click **"Load unpacked"** (or "Load unpacked extension").
+6. Select the folder where you unzipped Tabflow.
+7. **You're done!** Pin the Tabflow icon to your toolbar for easy access.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠️ How to Use It
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### The Dashboard
+To open the main dashboard, simply click the Tabflow extension icon in your toolbar and click **"Open Dashboard"**. From here, you can drag and drop folders on the canvas, talk to the AI assistant on the right panel, and manage all your tabs.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Chatting with the AI
+In the dashboard, you will see a chat window on the right. You can ask it to perform actions like:
+- *"Close all my tabs except the dashboard."*
+- *"Move my Netflix tab from Inbox to Entertainment."*
+- *"Schedule the Work folder to open tomorrow at 9 AM."*
+Before the AI executes any command, a **Confirm Actions** popup will appear so you can review and approve exactly what it intends to do.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Locking a Workspace
+To secure a workspace:
+1. Hover over the folder in the dashboard sidebar.
+2. Click the 🔒 Lock icon.
+3. Set a password and a recovery word.
+4. Once locked, the folder's contents will be completely hidden. To unlock it, click the lock icon again and enter your password.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 🏗️ Technologies Used
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS
+- Framer Motion (for smooth animations)
+- Chrome Extensions API (Manifest V3)
+- WebCrypto API (for secure AES-256 encryption)
