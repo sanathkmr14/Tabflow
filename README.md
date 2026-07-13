@@ -55,7 +55,7 @@ Since Tabflow is currently in developer preview, you can easily install it local
 ## 🛠️ How to Use It
 
 ### The Dashboard
-To open the main dashboard, simply click the Tabflow extension icon in your toolbar and click **"Open Dashboard"**. From here, you can drag and drop folders on the canvas, talk to the AI assistant on the right panel, and manage all your tabs.
+To open the main dashboard, simply click the Tabflow extension icon in your toolbar and click **"Open Dashboard"**. From here, you can visualize your folders on an interactive canvas, drag and drop tabs between folders to instantly organize them, talk to the AI assistant on the right panel, and manage your entire browser workspace.
 
 ### ⚡ Folder Quick Actions
 When you hover over any workspace folder in your dashboard, you gain access to powerful 1-click trigger buttons:
