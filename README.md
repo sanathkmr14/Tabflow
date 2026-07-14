@@ -111,6 +111,6 @@ Whether you want to fix a bug, suggest a new feature, or completely redesign a c
 
 If you just want to connect, chat about browser extensions, or share your thoughts, don't hesitate to reach out!
 
-<div align="right">
-  <p>📝 Licensed under the <strong>MIT License</strong>.</p>
-</div>
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
