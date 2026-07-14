@@ -110,3 +110,7 @@ Tabflow is an open-source project and we would absolutely love your help to make
 Whether you want to fix a bug, suggest a new feature, or completely redesign a component, **feel free to collaborate, open an issue, or submit a pull request!** 
 
 If you just want to connect, chat about browser extensions, or share your thoughts, don't hesitate to reach out!
+
+<div align="right">
+  <p>📝 Licensed under the <strong>MIT License</strong>.</p>
+</div>
