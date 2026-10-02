@@ -2138,20 +2138,6 @@ Strict Table Formatting Requirements:
               </button>
               <button 
                 disabled={selectedFolderIds.size === 0}
-                onClick={() => {
-                  const selectedFoldersList = folders.filter(f => selectedFolderIds.has(f.id));
-                  const allTabs = new Set(selectedFoldersList.flatMap(f => (f.tabs || []).map((t: any) => `${f.id}_${t.url}`)));
-                  setSelectedExportFolders(new Set(selectedFolderIds));
-                  setSelectedExportTabs(allTabs);
-                  setExpandedExportFolders(new Set());
-                  setShowExportModal(true);
-                }}
-                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 disabled:opacity-40 text-white transition-all border border-white/10 px-2.5 py-1.5 rounded-lg text-xs font-medium disabled:cursor-not-allowed"
-              >
-                <Upload className="w-3.5 h-3.5" /> Export Selected ({selectedFolderIds.size})
-              </button>
-              <button 
-                disabled={selectedFolderIds.size === 0}
                 onClick={() => setShowBulkDeleteModal(true)} 
                 className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600 text-white transition-all shadow-md shadow-red-500/20 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:cursor-not-allowed"
               >
