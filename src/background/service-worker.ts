@@ -458,6 +458,16 @@ async function executeParsedCommand(cmdType: string, args: Record<string, string
         chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
       }
     }
+  } else if (cmdType === 'EDIT_TAB' || cmdType === 'RENAME_TAB') {
+    if (args.folder && args.url) {
+      const session = await resolveFolder(args.folder);
+      if (session && !session.isLocked) {
+        const newTitle = args.new_title || args.title || '';
+        const newUrl = args.new_url || args.url;
+        await handleEditTabInFolder(session.id, args.url, newTitle, newUrl);
+        await broadcastRefresh();
+      }
+    }
   }
 }
 
@@ -913,6 +923,7 @@ async function handleUpdateFolderLock(sessionId: string, password?: string, reco
     session.isLocked = false;
   }
   await saveSession(session);
+  await broadcastRefresh();
   return session;
 }
 

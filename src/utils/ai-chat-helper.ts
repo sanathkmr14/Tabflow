@@ -86,6 +86,7 @@ CRITICAL INSTRUCTIONS & FORMAT PROTOCOL:
    - COMMAND: SCHEDULE_TAB folder="<folder_name_or_id>" url="<url>" action="<open_or_close>" time="<epoch_milliseconds>"
    - COMMAND: CLEAR_SCHEDULE folder="<folder_name_or_id>" url="<optional_tab_url>"
    - COMMAND: LOCK_FOLDER folder="<folder_name_or_id>"
+   - COMMAND: EDIT_TAB folder="<folder_name_or_id>" url="<current_url>" new_title="<new_title>" new_url="<optional_new_url>"
 
 8. CRITICAL RULE FOR TAB ORGANIZATION & SAVING TABS INTO FOLDERS:
    - You CANNOT organize tabs or create folders by merely writing conversational text.
@@ -176,7 +177,7 @@ export function extractCommandsAndCleanText(
   const commandsFound: string[] = [];
 
   // 1. Match standard COMMAND: syntax and <tool_call>
-  const commandLineRegex = /(?:\*\*|)?(?:COMMAND:|<tool_call>)\s*(OPEN_TAB|DELETE_TAB|DELETE_FOLDER|MOVE_TAB|COPY_TAB|ADD_TAB|CLOSE_TAB|RENAME_FOLDER|RESTORE_FOLDER|SCHEDULE_FOLDER|SCHEDULE_TAB|CLEAR_SCHEDULE|LOCK_FOLDER)\s+([^<\n*]+?)(?:>|\*\*|)?(?=\n|$)/gi;
+  const commandLineRegex = /(?:\*\*|)?(?:COMMAND:|<tool_call>)\s*(OPEN_TAB|DELETE_TAB|DELETE_FOLDER|MOVE_TAB|COPY_TAB|ADD_TAB|CLOSE_TAB|RENAME_FOLDER|RESTORE_FOLDER|SCHEDULE_FOLDER|SCHEDULE_TAB|CLEAR_SCHEDULE|LOCK_FOLDER|EDIT_TAB|RENAME_TAB)\s+([^<\n*]+?)(?:>|\*\*|)?(?=\n|$)/gi;
   let match: RegExpExecArray | null;
 
   while ((match = commandLineRegex.exec(rawText)) !== null) {

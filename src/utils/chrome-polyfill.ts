@@ -495,6 +495,49 @@ if (typeof window !== 'undefined') {
                       try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
                     });
                   }
+                } else if (cmd.type === 'MOVE_TAB' && cmd.args?.src && cmd.args?.dest && cmd.args?.url) {
+                  const sessions = await getSessions();
+                  const src = sessions.find(s => s.id === cmd.args.src || s.name.toLowerCase() === cmd.args.src.toLowerCase());
+                  let dest = sessions.find(s => s.id === cmd.args.dest || s.name.toLowerCase() === cmd.args.dest.toLowerCase());
+                  if (!dest) {
+                    const newDest: WorkspaceSession = {
+                      id: 'session-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+                      name: cmd.args.dest.trim(),
+                      timestamp: Date.now(),
+                      tabs: [],
+                      contextSummary: 'Created by AI Assistant'
+                    };
+                    sessions.push(newDest);
+                    dest = newDest;
+                  }
+                  if (src && dest && !src.isLocked && !dest.isLocked) {
+                    const tabToMove = src.tabs.find(t => isSameUrl(t.url, cmd.args.url));
+                    if (tabToMove) {
+                      if (!dest.tabs.some(t => isSameUrl(t.url, tabToMove.url))) {
+                        dest.tabs.unshift({ ...tabToMove });
+                        await saveSession(dest);
+                      }
+                      src.tabs = src.tabs.filter(t => !isSameUrl(t.url, cmd.args.url));
+                      await saveSession(src);
+                      messageListeners.forEach(l => {
+                        try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+                      });
+                    }
+                  }
+                } else if ((cmd.type === 'EDIT_TAB' || cmd.type === 'RENAME_TAB') && cmd.args?.folder && cmd.args?.url) {
+                  const sessions = await getSessions();
+                  const target = sessions.find(s => s.id === cmd.args.folder || s.name.toLowerCase() === cmd.args.folder.toLowerCase());
+                  if (target && !target.isLocked) {
+                    const tab = target.tabs.find(t => isSameUrl(t.url, cmd.args.url));
+                    if (tab) {
+                      if (cmd.args.new_title || cmd.args.title) tab.title = cleanTabTitle(cmd.args.new_title || cmd.args.title);
+                      if (cmd.args.new_url && isValidUrl(cmd.args.new_url)) tab.url = sanitizeUrl(cmd.args.new_url);
+                      await saveSession(target);
+                      messageListeners.forEach(l => {
+                        try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+                      });
+                    }
+                  }
                 } else if (cmd.type === 'COPY_TAB' && cmd.args?.src && cmd.args?.dest && cmd.args?.url) {
                   const sessions = await getSessions();
                   const src = sessions.find(s => s.id === cmd.args.src || s.name.toLowerCase() === cmd.args.src.toLowerCase());

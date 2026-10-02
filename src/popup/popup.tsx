@@ -44,6 +44,7 @@ interface PromptModalProps {
     isPassword?: boolean;
     onSubmit: (value: string) => string | null | Promise<string | null>;
     onCancel: () => void;
+    onForgot?: () => void;
   };
 }
 
@@ -116,6 +117,15 @@ const PromptModal: React.FC<PromptModalProps> = ({ config }) => {
             {error}
           </p>
         )}
+        {config.onForgot && (
+          <button
+            type="button"
+            onClick={config.onForgot}
+            className="text-[10px] text-blue-400 hover:text-blue-300 hover:underline text-center cursor-pointer -mt-1 font-medium transition-colors"
+          >
+            Forgot password? Open in dashboard
+          </button>
+        )}
         <div className="flex gap-2 mt-1">
           <button
             type="button"
@@ -148,6 +158,7 @@ const Popup = () => {
     isPassword?: boolean;
     onSubmit: (value: string) => string | null | Promise<string | null>;
     onCancel: () => void;
+    onForgot?: () => void;
   } | null>(null);
 
   const [alertConfig, setAlertConfig] = useState<{
@@ -217,7 +228,8 @@ const Popup = () => {
   const showModalPrompt = (
     title: string,
     description: string,
-    onSubmit: (value: string) => string | null | Promise<string | null>
+    onSubmit: (value: string) => string | null | Promise<string | null>,
+    onForgot?: () => void
   ): Promise<boolean> => {
     return new Promise((resolve) => {
       setModalConfig({
@@ -235,7 +247,8 @@ const Popup = () => {
         onCancel: () => {
           resolve(false);
           setModalConfig(null);
-        }
+        },
+        onForgot
       });
     });
   };
@@ -271,6 +284,10 @@ const Popup = () => {
         } else {
           return "Incorrect password.";
         }
+      },
+      () => {
+        setModalConfig(null);
+        openDashboard(session.id);
       }
     );
     

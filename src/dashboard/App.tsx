@@ -565,6 +565,7 @@ function ChatView() {
                     : cmd.type === 'RESTORE_FOLDER' ? 'Open Workspace'
                     : cmd.type === 'LOCK_FOLDER' ? 'Lock Workspace'
                     : cmd.type === 'SCHEDULE_FOLDER' ? 'Schedule Workspace'
+                    : cmd.type === 'EDIT_TAB' || cmd.type === 'RENAME_TAB' ? 'Edit Tab'
                     : cmd.type.replace(/_/g, ' ');
 
                   return (
