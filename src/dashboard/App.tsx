@@ -1412,7 +1412,7 @@ Strict Table Formatting Requirements:
 
   const openFolderTabs = async (folder: any, target: 'current' | 'new' | 'incognito' = 'current') => {
     if (folder.isLocked) {
-      showToast('Folder Protected', 'This folder is password locked. Please unlock it to open tabs.', 'error');
+      showToast('Folder Locked', `"${folder.name || 'Folder'}" is locked. Unlock to use it.`, 'info');
       return;
     }
     
@@ -1451,7 +1451,7 @@ Strict Table Formatting Requirements:
 
   const closeFolderTabs = (folder: any) => {
     if (folder.isLocked) {
-      showToast('Folder Protected', 'This folder is password locked. Please unlock it to perform this action.', 'error');
+      showToast('Folder Locked', `"${folder.name || 'Folder'}" is locked. Unlock to use it.`, 'info');
       return;
     }
     chrome.runtime.sendMessage({ type: 'CLOSE_FOLDER_TABS', sessionId: folder.id }, (response) => {
@@ -2130,17 +2130,6 @@ Strict Table Formatting Requirements:
               >
                 Select All
               </button>
-              {filteredFolders.some(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)) && (
-                <button 
-                  onClick={() => {
-                    const emptyIds = new Set(filteredFolders.filter(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)).map(f => f.id));
-                    setSelectedFolderIds(emptyIds);
-                  }}
-                  className="bg-white/5 hover:bg-white/10 text-red-400 hover:text-red-300 border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
-                >
-                  Select Empty ({filteredFolders.filter(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)).length})
-                </button>
-              )}
               <button 
                 onClick={() => setSelectedFolderIds(new Set())} 
                 className="bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
@@ -2192,19 +2181,6 @@ Strict Table Formatting Requirements:
               }} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium">
                 <Upload className="w-3.5 h-3.5" /> Export
               </button>
-              {folders.some(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)) && (
-                <button 
-                  onClick={() => {
-                    const emptyIds = folders.filter(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)).map(f => f.id);
-                    setSelectedFolderIds(new Set(emptyIds));
-                    setShowBulkDeleteModal(true);
-                  }}
-                  className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
-                  title="Clean up empty workspace folders"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Clean Empty ({folders.filter(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)).length})
-                </button>
-              )}
               {folders.length > 0 && (
                 <button 
                   onClick={() => setIsSelectMode(true)} 
@@ -2461,24 +2437,10 @@ Strict Table Formatting Requirements:
                     <Trash2 className="w-5 h-5" />
                   </div>
                   <h3 className="text-sm font-semibold text-white tracking-tight mb-1">
-                    {(() => {
-                      const isAllEmpty = Array.from(selectedFolderIds).every(id => {
-                        const f = folders.find(folder => folder.id === id);
-                        return f && !f.isLocked && (!f.tabs || f.tabs.length === 0);
-                      });
-                      if (isAllEmpty) {
-                        return selectedFolderIds.size === 1 ? 'Delete Empty Folder?' : `Delete ${selectedFolderIds.size} Empty Folders?`;
-                      }
-                      return selectedFolderIds.size === 1 ? 'Delete Workspace Folder?' : 'Delete Selected Folders?';
-                    })()}
+                    {selectedFolderIds.size === 1 ? 'Delete Workspace Folder?' : 'Delete Selected Folders?'}
                   </h3>
                   <p className="text-xs text-white/50 mb-3.5 leading-normal">
-                    {Array.from(selectedFolderIds).every(id => {
-                      const f = folders.find(folder => folder.id === id);
-                      return f && !f.isLocked && (!f.tabs || f.tabs.length === 0);
-                    })
-                      ? 'Permanently deletes the selected empty workspace folders.'
-                      : 'Permanently deletes selected folders, tabs, and timers.'}
+                    Permanently deletes selected folders, tabs, and timers.
                   </p>
                   <div className="flex items-center justify-center gap-2">
                     <button 
@@ -4653,21 +4615,32 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     const targetNode = nodes.find(n => n.id === nodeId);
     if (!targetNode) return;
 
-    if (targetNode.type === 'folder' && targetNode.isLocked) {
-      showToast('Folder Locked', `"${targetNode.label}" is password locked. Double-click to unlock.`, 'info');
+    const folderData = foldersList.find(f => f.id === nodeId);
+    const isFolderLocked = !!(targetNode.isLocked || folderData?.isLocked);
+
+    if (targetNode.type === 'folder' && isFolderLocked) {
+      showToast('Folder Locked', `"${folderData?.name || targetNode.label}" is locked. Unlock to use it.`, 'info');
+      setDraggedNodeId(null);
+      draggedRef.current = false;
       return;
     }
 
     if (isLayoutFrozen && targetNode.type === 'folder') {
       showToast('Layout Locked', 'Unlock layout at top right to reposition folders.', 'info');
+      setDraggedNodeId(null);
+      draggedRef.current = false;
       return;
     }
 
     if (targetNode.type === 'tab' && targetNode.parentId) {
-      const parentFolder = nodes.find(n => n.id === targetNode.parentId) || foldersList.find(f => f.id === targetNode.parentId);
-      if (parentFolder?.isLocked) {
-        const folderTitle = (parentFolder as any)?.name || (parentFolder as any)?.label || 'Folder';
-        showToast('Folder Locked', `"${folderTitle}" is locked. Tabs cannot be moved or dragged.`, 'info');
+      const parentFolderNode = nodes.find(n => n.id === targetNode.parentId);
+      const parentFolderData = foldersList.find(f => f.id === targetNode.parentId);
+      const isParentLocked = !!(parentFolderNode?.isLocked || parentFolderData?.isLocked);
+      if (isParentLocked) {
+        const folderTitle = parentFolderData?.name || parentFolderNode?.label || 'Folder';
+        showToast('Folder Locked', `"${folderTitle}" is locked. Unlock to use it.`, 'info');
+        setDraggedNodeId(null);
+        draggedRef.current = false;
         return;
       }
     }
@@ -4738,11 +4711,13 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       const draggedNode = nodes.find(n => n.id === draggedNodeId);
       if (draggedNode && draggedNode.type === 'tab' && draggedNode.parentId) {
         const sourceFolder = foldersList.find(f => f.id === draggedNode.parentId);
-        if (sourceFolder?.isLocked) {
-          showToast("Folder Protected", `Cannot move tab out of "${sourceFolder.name}". Folder is password locked.`, "error");
+        const sourceNode = nodes.find(n => n.id === draggedNode.parentId);
+        const isSourceLocked = !!(sourceFolder?.isLocked || sourceNode?.isLocked);
+        if (isSourceLocked) {
+          showToast("Folder Locked", `"${sourceFolder?.name || sourceNode?.label || 'Folder'}" is locked. Unlock to use it.`, "info");
           setDraggedNodeId(null);
           setIsPanning(false);
-          initializeLayout(foldersList, Array.from(visibleFolderIds));
+          initializeLayout(foldersList, Array.from(visibleFolderIds), isLayoutFrozenRef.current, savedPositionsRef.current, expandedMapFoldersRef.current);
           return;
         }
 
@@ -4754,11 +4729,14 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
         );
 
         if (targetFolder) {
-          if (targetFolder.isLocked) {
-            showToast("Folder Protected", `Cannot move tab into "${targetFolder.label}". Folder is password locked.`, "error");
+          const targetFolderData = foldersList.find(f => f.id === targetFolder.id);
+          const isTargetLocked = !!(targetFolder.isLocked || targetFolderData?.isLocked);
+
+          if (isTargetLocked) {
+            showToast("Folder Locked", `"${targetFolderData?.name || targetFolder.label}" is locked. Unlock to use it.`, "info");
             setDraggedNodeId(null);
             setIsPanning(false);
-            initializeLayout(foldersList, Array.from(visibleFolderIds));
+            initializeLayout(foldersList, Array.from(visibleFolderIds), isLayoutFrozenRef.current, savedPositionsRef.current, expandedMapFoldersRef.current);
             return;
           }
 
@@ -4766,7 +4744,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
           const tabUrl = draggedNode.url || '';
           const sourceFolderId = draggedNode.parentId;
           const destFolderId = targetFolder.id;
-          const destFolderName = targetFolder.label;
+          const destFolderName = targetFolderData?.name || targetFolder.label;
 
           try {
             const res = await new Promise<any>((resolve, reject) => {
@@ -4783,7 +4761,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
 
             if (res && res.error) {
               showToast("Action Failed", res.error, "error");
-              initializeLayout(foldersList, Array.from(visibleFolderIds));
+              initializeLayout(foldersList, Array.from(visibleFolderIds), isLayoutFrozenRef.current, savedPositionsRef.current, expandedMapFoldersRef.current);
             } else {
               showToast("Tab Moved", `Successfully moved "${tabTitle}" to "${destFolderName}".`, "success");
 
@@ -4814,16 +4792,21 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
           } catch (err: any) {
             console.error("Failed to move tab:", err);
             showToast("Action Failed", err?.message || "Could not move tab to the destination folder.", "error");
-            initializeLayout(foldersList, Array.from(visibleFolderIds));
+            initializeLayout(foldersList, Array.from(visibleFolderIds), isLayoutFrozenRef.current, savedPositionsRef.current, expandedMapFoldersRef.current);
           }
 
           setDraggedNodeId(null);
           setIsPanning(false);
           return;
         }
+
+        // If tab was dropped in empty space (not onto any other folder), snap back to its parent folder's orbit
+        initializeLayout(foldersList, Array.from(visibleFolderIds), isLayoutFrozenRef.current, savedPositionsRef.current, expandedMapFoldersRef.current);
+        setDraggedNodeId(null);
+        setIsPanning(false);
+        return;
       }
       if (isLayoutFrozen) {
-        // If layout is frozen and tab wasn't dropped into another folder, snap back to its saved orbit
         initializeLayout(foldersList, Array.from(visibleFolderIds), true, savedPositionsRef.current, expandedMapFoldersRef.current);
       } else {
         await saveCurrentPositions(nodes);
@@ -5296,12 +5279,14 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
 
               if (node.type === 'folder') {
                 const folderSize = node.size || 18;
+                const folderData = foldersList.find(f => f.id === node.id);
+                const isLocked = !!(node.isLocked || folderData?.isLocked);
                 const isDropTarget = dropTargetFolderId === node.id;
                 return (
                   <g 
                     key={node.id} 
                     transform={`translate(${node.x}, ${node.y})`}
-                    className={node.isLocked ? "cursor-not-allowed transition-transform duration-300" : isLayoutFrozen ? "cursor-pointer transition-transform duration-300" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
+                    className={isLocked ? "cursor-not-allowed transition-transform duration-300" : isLayoutFrozen ? "cursor-pointer transition-transform duration-300" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
                     style={{ opacity }}
                     onMouseDown={(e) => handleMouseDown(node.id, e)}
                     onClick={(e) => { e.stopPropagation(); handleFolderClick(node.id); }}
@@ -5309,7 +5294,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                     onMouseEnter={() => setHoveredNode(node)}
                     onMouseLeave={() => setHoveredNode(null)}
                   >
-                    {isDropTarget && !node.isLocked && (
+                    {isDropTarget && !isLocked && (
                       <>
                         <circle 
                           r={folderSize + 22} 
@@ -5333,7 +5318,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                         </text>
                       </>
                     )}
-                    {isDropTarget && node.isLocked && (
+                    {isDropTarget && isLocked && (
                       <>
                         <circle 
                           r={folderSize + 22} 
@@ -5357,12 +5342,12 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                         </text>
                       </>
                     )}
-                    <circle r={folderSize + 4} fill={isDropTarget ? (node.isLocked ? '#ef4444' : '#10b981') : (node.isLocked ? '#ef4444' : node.color)} opacity={isDropTarget ? 0.35 : (node.isLocked ? 0.25 : 0.12)} style={{ filter: glow !== 'none' || isDropTarget ? 'blur(4px)' : 'none' }} />
+                    <circle r={folderSize + 4} fill={isDropTarget ? (isLocked ? '#ef4444' : '#10b981') : (isLocked ? '#ef4444' : node.color)} opacity={isDropTarget ? 0.35 : (isLocked ? 0.25 : 0.12)} style={{ filter: glow !== 'none' || isDropTarget ? 'blur(4px)' : 'none' }} />
                     <circle
                       r={folderSize}
                       fill="#0f0e15"
-                      stroke={isDropTarget ? (node.isLocked ? '#ef4444' : '#10b981') : (node.isLocked ? '#ef4444' : node.color)}
-                      strokeWidth={isDropTarget ? "3.5" : (node.isLocked ? "3" : "2.5")}
+                      stroke={isDropTarget ? (isLocked ? '#ef4444' : '#10b981') : (isLocked ? '#ef4444' : node.color)}
+                      strokeWidth={isDropTarget ? "3.5" : (isLocked ? "3" : "2.5")}
                       className="transition-all duration-300"
                       style={{ transform: `scale(${isDropTarget ? 1.2 : scale})` }}
                     />
@@ -5374,17 +5359,17 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                       fontWeight="bold"
                       className="pointer-events-none select-none font-sans"
                     >
-                      {node.isLocked ? '🔒' : '📁'}
+                      {isLocked ? '🔒' : '📁'}
                     </text>
                     <text
                       y={folderSize + 18}
                       textAnchor="middle"
-                      fill={isDropTarget ? (node.isLocked ? '#f87171' : '#34d399') : (node.isLocked ? '#fca5a5' : 'white')}
+                      fill={isDropTarget ? (isLocked ? '#f87171' : '#34d399') : (isLocked ? '#fca5a5' : 'white')}
                       fontSize="10"
-                      fontWeight={isDropTarget || node.isLocked ? "bold" : "500"}
+                      fontWeight={isDropTarget || isLocked ? "bold" : "500"}
                       className="pointer-events-none select-none drop-shadow-md bg-black/60 font-sans"
                     >
-                      {node.label}{node.isLocked ? ' 🔒' : ''}
+                      {node.label}{isLocked ? ' 🔒' : ''}
                     </text>
                   </g>
                 );
