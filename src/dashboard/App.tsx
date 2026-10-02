@@ -4169,13 +4169,15 @@ const MAP_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b
  */
 function getTabOrbitPosition(fx: number, fy: number, index: number, totalTabs: number): { x: number; y: number } {
   if (totalTabs <= 1) {
-    return { x: fx + 60, y: fy };
+    return { x: fx + 65, y: fy };
   }
 
   // 1 to 6 tabs: Single comfortable orbital ring
+  // Rotates startAngle so that no tab lands on bottom center (Math.PI / 2) over the folder title
   if (totalTabs <= 6) {
-    const radius = Math.max(56, 46 + totalTabs * 2.5);
-    const angle = (2 * Math.PI * index) / totalTabs;
+    const radius = Math.max(58, 48 + totalTabs * 3);
+    const startAngle = totalTabs % 2 === 0 ? -Math.PI / 2 + Math.PI / totalTabs : -Math.PI / 2;
+    const angle = startAngle + (2 * Math.PI * index) / totalTabs;
     return {
       x: fx + radius * Math.cos(angle),
       y: fy + radius * Math.sin(angle)
@@ -4184,21 +4186,22 @@ function getTabOrbitPosition(fx: number, fy: number, index: number, totalTabs: n
 
   // 7 to 15 tabs: 2 concentric planetary rings
   if (totalTabs <= 15) {
-    const innerCount = Math.min(5, Math.floor(totalTabs * 0.4));
+    const innerCount = Math.min(5, Math.floor(totalTabs * 0.38));
     const outerCount = totalTabs - innerCount;
 
     if (index < innerCount) {
-      const radius = 52;
-      const angle = (2 * Math.PI * index) / innerCount;
+      const radius = 60;
+      const startAngle = innerCount % 2 === 0 ? -Math.PI / 2 + Math.PI / innerCount : -Math.PI / 2;
+      const angle = startAngle + (2 * Math.PI * index) / innerCount;
       return {
         x: fx + radius * Math.cos(angle),
         y: fy + radius * Math.sin(angle)
       };
     } else {
       const outerIndex = index - innerCount;
-      const radius = 92;
-      // Stagger angle by half-step so outer tabs don't overlap inner tabs
-      const angle = (2 * Math.PI * outerIndex) / outerCount + (Math.PI / outerCount);
+      const radius = 100;
+      const startAngle = outerCount % 2 === 0 ? -Math.PI / 2 + Math.PI / outerCount : -Math.PI / 2;
+      const angle = startAngle + (2 * Math.PI * outerIndex) / outerCount;
       return {
         x: fx + radius * Math.cos(angle),
         y: fy + radius * Math.sin(angle)
@@ -4212,18 +4215,21 @@ function getTabOrbitPosition(fx: number, fy: number, index: number, totalTabs: n
   const ring3Count = totalTabs - ring1Count - ring2Count;
 
   if (index < ring1Count) {
-    const radius = 50;
-    const angle = (2 * Math.PI * index) / ring1Count;
+    const radius = 58;
+    const startAngle = ring1Count % 2 === 0 ? -Math.PI / 2 + Math.PI / ring1Count : -Math.PI / 2;
+    const angle = startAngle + (2 * Math.PI * index) / ring1Count;
     return { x: fx + radius * Math.cos(angle), y: fy + radius * Math.sin(angle) };
   } else if (index < ring1Count + ring2Count) {
     const idx2 = index - ring1Count;
-    const radius = 90;
-    const angle = (2 * Math.PI * idx2) / ring2Count + (Math.PI / ring2Count);
+    const radius = 98;
+    const startAngle = ring2Count % 2 === 0 ? -Math.PI / 2 + Math.PI / ring2Count : -Math.PI / 2;
+    const angle = startAngle + (2 * Math.PI * idx2) / ring2Count + (Math.PI / ring2Count);
     return { x: fx + radius * Math.cos(angle), y: fy + radius * Math.sin(angle) };
   } else {
     const idx3 = index - ring1Count - ring2Count;
-    const radius = 130;
-    const angle = (2 * Math.PI * idx3) / ring3Count + (Math.PI / (2 * ring3Count));
+    const radius = 138;
+    const startAngle = ring3Count % 2 === 0 ? -Math.PI / 2 + Math.PI / ring3Count : -Math.PI / 2;
+    const angle = startAngle + (2 * Math.PI * idx3) / ring3Count + (Math.PI / (2 * ring3Count));
     return { x: fx + radius * Math.cos(angle), y: fy + radius * Math.sin(angle) };
   }
 }
@@ -4432,12 +4438,17 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     const folderNode = nodes.find(n => n.id === folderId);
     if (!folderNode || !folderData) return;
 
+    const tabs = folderData.tabs || [];
+    const tabCount = tabs.length;
+    if (tabCount === 0) {
+      showToast('Empty Folder', `"${folderData.name}" has no tabs yet. Drag tabs here to add.`, 'info');
+      return;
+    }
+
     const nextSet = new Set(expandedMapFolders);
     nextSet.add(folderId);
     setExpandedMapFolders(nextSet);
 
-    const tabs = folderData.tabs || [];
-    const tabCount = tabs.length;
     const newTabNodes: MapNode[] = [];
 
     tabs.forEach((tab, j) => {
@@ -4625,8 +4636,8 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       return;
     }
 
-    if (isLayoutFrozen && targetNode.type === 'folder') {
-      showToast('Layout Locked', 'Unlock layout at top right to reposition folders.', 'info');
+    if (isLayoutFrozen) {
+      showToast('Layout Locked', 'Workspace layout is locked. Unlock at top right to reposition folders or move tabs.', 'info');
       setDraggedNodeId(null);
       draggedRef.current = false;
       return;
@@ -4662,12 +4673,10 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   const handleMouseMove = (e: React.MouseEvent) => {
     if (draggedNodeId) {
       if (isLayoutFrozen) {
-        const dNode = nodes.find(n => n.id === draggedNodeId);
-        if (!dNode || dNode.type !== 'tab') {
-          setDraggedNodeId(null);
-          showToast('Layout Locked', 'Unlock layout at top right to reposition folders.', 'info');
-          return;
-        }
+        setDraggedNodeId(null);
+        setDropTargetFolderId(null);
+        showToast('Layout Locked', 'Workspace layout is locked. Unlock at top right to reposition folders or move tabs.', 'info');
+        return;
       }
       draggedRef.current = true;
       const rect = e.currentTarget.getBoundingClientRect();
@@ -4708,6 +4717,14 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     setDropTargetFolderId(null);
 
     if (draggedNodeId) {
+      if (isLayoutFrozen) {
+        setDraggedNodeId(null);
+        setIsPanning(false);
+        showToast('Layout Locked', 'Workspace layout is locked. Unlock at top right to reposition folders or move tabs.', 'info');
+        initializeLayout(foldersList, Array.from(visibleFolderIds), true, savedPositionsRef.current, expandedMapFoldersRef.current);
+        return;
+      }
+
       const draggedNode = nodes.find(n => n.id === draggedNodeId);
       if (draggedNode && draggedNode.type === 'tab' && draggedNode.parentId) {
         const sourceFolder = foldersList.find(f => f.id === draggedNode.parentId);
@@ -4818,6 +4835,11 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   };
 
   const handleAutoLayout = async () => {
+    if (isLayoutFrozen) {
+      showToast('Layout Locked', 'Workspace layout is locked. Unlock at top right before auto-organizing.', 'info');
+      return;
+    }
+
     // Deep clone nodes to prevent direct state mutation during simulation
     const tempNodes: MapNode[] = nodes.map(n => ({ ...n }));
     const folderNodes = tempNodes.filter(n => n.type === 'folder');
@@ -5281,12 +5303,13 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                 const folderSize = node.size || 18;
                 const folderData = foldersList.find(f => f.id === node.id);
                 const isLocked = !!(node.isLocked || folderData?.isLocked);
+                const tabCount = (folderData?.tabs || []).length;
                 const isDropTarget = dropTargetFolderId === node.id;
                 return (
                   <g 
                     key={node.id} 
                     transform={`translate(${node.x}, ${node.y})`}
-                    className={isLocked ? "cursor-not-allowed transition-transform duration-300" : isLayoutFrozen ? "cursor-pointer transition-transform duration-300" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
+                    className={isLocked || isLayoutFrozen ? "cursor-not-allowed transition-transform duration-300" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
                     style={{ opacity }}
                     onMouseDown={(e) => handleMouseDown(node.id, e)}
                     onClick={(e) => { e.stopPropagation(); handleFolderClick(node.id); }}
@@ -5371,6 +5394,18 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                     >
                       {node.label}{isLocked ? ' 🔒' : ''}
                     </text>
+                    {tabCount === 0 && !isLocked && (
+                      <text
+                        y={folderSize + 29}
+                        textAnchor="middle"
+                        fill="rgba(255,255,255,0.4)"
+                        fontSize="8.5"
+                        fontWeight="normal"
+                        className="pointer-events-none select-none font-sans"
+                      >
+                        (empty)
+                      </text>
+                    )}
                   </g>
                 );
               } else {
@@ -5381,7 +5416,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                   <g
                     key={node.id}
                     transform={`translate(${node.x}, ${node.y})`}
-                    className={isParentLocked ? "cursor-not-allowed transition-transform duration-300 opacity-60" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
+                    className={isParentLocked || isLayoutFrozen ? "cursor-not-allowed transition-transform duration-300 opacity-60" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
                     style={{ opacity: isParentLocked ? 0.5 : opacity }}
                     onMouseDown={(e) => handleMouseDown(node.id, e)}
                     onDoubleClick={() => handleDoubleClick(node.url)}
@@ -5443,9 +5478,14 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
           </button>
 
           <button 
+            disabled={isLayoutFrozen}
             onClick={handleAutoLayout}
-            className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-xs text-white border border-white/10 transition-colors px-3 py-1.5 rounded-xl font-medium cursor-pointer"
-            title="Auto-Organize Graph layout"
+            className={`flex items-center gap-1.5 border transition-colors px-3 py-1.5 rounded-xl text-xs font-medium ${
+              isLayoutFrozen 
+                ? 'opacity-40 cursor-not-allowed bg-white/5 border-white/5 text-white/50' 
+                : 'bg-white/5 hover:bg-white/10 text-white border-white/10 cursor-pointer'
+            }`}
+            title={isLayoutFrozen ? "Unlock layout to auto-organize" : "Auto-Organize Graph layout"}
           >
             <Sparkles className="w-3.5 h-3.5 text-blue-400" /> Organize
           </button>
