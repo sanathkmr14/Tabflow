@@ -7,7 +7,7 @@ import {
   Folder, Clock, Play, Pencil, Share2, Copy, Check, CheckSquare, XSquare, Pin, Star, Search, Download, Upload, Lock, Unlock, Key, AppWindow, Ghost, Info, Eye, EyeOff, Network, Plus, AlertCircle, X, ExternalLink
 } from 'lucide-react';
 import { sha256 } from '../utils/crypto';
-import { sanitizeUrl, isValidUrl, isSameUrl } from '../utils/url';
+import { sanitizeUrl, isValidUrl, isSameUrl, cleanTabTitle, getCleanDomain } from '../utils/url';
 import { sanitizeStreamChunk } from '../utils/ai-chat-helper';
 import type { WorkspaceSession } from '../storage/db';
 
@@ -471,26 +471,28 @@ function ChatView() {
               onClick={() => setShowConfirm(false)}
               className="fixed inset-0 bg-black/75 backdrop-blur-md"
             />
-            {/* Modal Content */}
+            {/* Modal Content - Streamlined One-Line Layout */}
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="relative w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-5 shadow-2xl shadow-black/90 text-center"
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.16, ease: "easeOut" }}
+              className="relative w-full max-w-xl overflow-hidden rounded-xl border border-red-500/25 bg-[#0e121a]/95 backdrop-blur-xl px-4 py-3 shadow-2xl shadow-black/90 flex flex-col sm:flex-row items-center justify-between gap-3 text-left"
             >
-              <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center mx-auto mb-3 text-red-400">
-                <Trash2 className="w-5 h-5" />
+              <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+                <div className="w-8 h-8 rounded-lg bg-red-500/15 border border-red-500/25 flex items-center justify-center shrink-0 text-red-400">
+                  <Trash2 className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-baseline gap-x-2 gap-y-0.5 min-w-0">
+                  <span className="text-xs font-semibold text-white whitespace-nowrap">Clear Chat History?</span>
+                  <span className="text-xs text-white/50 truncate">Permanently deletes your entire conversation history.</span>
+                </div>
               </div>
-              <h3 className="text-sm font-semibold text-white tracking-tight mb-1">Clear Chat History?</h3>
-              <p className="text-xs text-white/50 mb-3.5 leading-normal">
-                Permanently deletes your entire conversation history.
-              </p>
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                 <button 
                   type="button"
                   onClick={() => setShowConfirm(false)}
-                  className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 active:bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-all"
+                  className="px-3 py-1.5 bg-white/5 hover:bg-white/10 active:bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -500,7 +502,7 @@ function ChatView() {
                     setMessages([]);
                     setShowConfirm(false);
                   }}
-                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 active:scale-[0.98] rounded-lg text-xs font-semibold text-white shadow-md shadow-red-500/20 transition-all flex items-center justify-center gap-1.5"
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 active:scale-[0.98] rounded-lg text-xs font-semibold text-white shadow-md shadow-red-500/20 transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
                   <Trash2 className="w-3 h-3" />
                   <span>Clear All</span>
@@ -595,12 +597,23 @@ function ChatView() {
                 </button>
                 <button 
                   onClick={() => {
-                    chrome.runtime.sendMessage({ type: 'EXECUTE_CONFIRMED_COMMANDS', commands: pendingCommands });
+                    const count = pendingCommands.length;
+                    chrome.runtime.sendMessage({ type: 'EXECUTE_CONFIRMED_COMMANDS', commands: pendingCommands }, () => {
+                      chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' });
+                    });
                     setPendingCommands([]);
+                    setMessages(prev => [
+                      ...prev,
+                      {
+                        role: 'assistant',
+                        content: `✅ Successfully executed **${count}** workspace action${count > 1 ? 's' : ''}! Workspace folders have been updated.`
+                      }
+                    ]);
                   }} 
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 flex items-center gap-1.5"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 flex items-center gap-1.5 cursor-pointer"
                 >
-                  Approve & Execute
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Approve & Execute</span>
                 </button>
               </div>
             </motion.div>
@@ -1028,18 +1041,23 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       const selectedTabs = showShareModal.tabs.filter(t => selectedShareTabs.has(t.url));
       if (selectedTabs.length === 0) throw new Error("No tabs selected to share.");
       
-      const tabsList = selectedTabs.map((t: any, i: number) => `${i + 1}. ${t.title} - ${t.url}`).join('\n');
-      const prompt = `You are a helpful assistant. I have a workspace folder named '${showShareModal.folderName}' containing the following tabs:\n\n${tabsList}\n\nPlease generate a beautifully formatted Markdown document that summarizes this workspace.
+      const tabsList = selectedTabs.map((t: any, i: number) => {
+        const cleanTitle = cleanTabTitle(t.title);
+        const domain = getCleanDomain(t.url);
+        return `${i + 1}. Title: "${cleanTitle}", Domain: ${domain}, URL: ${t.url}`;
+      }).join('\n');
 
-Create a clear summary table with columns:
-| Title | URL | Description |
+      const prompt = `You are a professional workspace assistant. Summarize the workspace folder named '${showShareModal.folderName}' containing these tabs:\n\n${tabsList}\n\nPlease generate a clean, highly professional Markdown summary document.
+Include a brief introductory overview paragraph, followed by a clean summary table with EXACTLY these 3 columns:
+| Title | Domain | Description |
+|---|---|---|
 
-For each tab:
-- Title: The tab title as a link: [Title](URL)
-- URL: The domain or link
-- Description: A 1-sentence guess of what this website/tool is for.
-
-Ensure every cell is filled out and no columns or cells are left blank. Format cleanly with Markdown headings and bullet points where helpful.`;
+Rules for the table:
+- Title: Clean website/tool name (without notification badges or numbers), formatted as a markdown link: [Website Name](Full URL)
+- Domain: The clean domain (e.g., youtube.com, chatgpt.com)
+- Description: A clear, professional 1-sentence description of the website or tool's purpose.
+- EXACTLY 3 columns. Never add extra columns, empty columns, or trailing pipes.
+- Ensure every cell is filled out concisely and professionally.`;
       
       const markdown = await import('../ai/llm').then(m => m.callLLM(prompt));
       setShareViewMode('preview');
@@ -2468,7 +2486,7 @@ Ensure every cell is filled out and no columns or cells are left blank. Format c
         {showShareModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowShareModal(null)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[580px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90 flex flex-col max-h-[85vh]">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[680px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90 flex flex-col max-h-[85vh]">
               <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08] shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
@@ -2615,14 +2633,16 @@ Ensure every cell is filled out and no columns or cells are left blank. Format c
                               loadFolders();
                             });
                           }
+                          generateShareableWorkspace();
                         }} 
-                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-white/80 transition-colors"
+                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-white/80 transition-colors flex items-center gap-1.5 cursor-pointer"
                       >
-                        Regenerate
+                        <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Regenerate</span>
                       </button>
                       <button 
                         onClick={() => { navigator.clipboard.writeText(shareLink); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }} 
-                        className="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 bg-green-500/20 text-green-400 border border-green-500/30"
+                        className="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 bg-green-500/20 text-green-400 border border-green-500/30 cursor-pointer"
                       >
                         {shareCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Link</>}
                       </button>
@@ -2631,18 +2651,28 @@ Ensure every cell is filled out and no columns or cells are left blank. Format c
                     <button 
                       onClick={generateShareableWorkspace} 
                       disabled={selectedShareTabs.size === 0 || isGeneratingShare} 
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all flex items-center gap-1.5 ${selectedShareTabs.size === 0 ? 'opacity-50 bg-white/10' : 'bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-500/25'}`}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all flex items-center gap-1.5 cursor-pointer ${selectedShareTabs.size === 0 ? 'opacity-50 bg-white/10' : 'bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-500/25'}`}
                     >
                       <Sparkles className="w-3.5 h-3.5" /> Generate Summary
                     </button>
                   ) : (
-                    <button 
-                      onClick={generatePublicLink} 
-                      disabled={isGeneratingLink} 
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all flex items-center gap-1.5 ${isGeneratingLink ? 'opacity-50 bg-white/10' : 'bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-500/25 disabled:opacity-50'}`}
-                    >
-                      {isGeneratingLink ? "Generating..." : <><Share2 className="w-3.5 h-3.5" /> Get Public Link</>}
-                    </button>
+                    <>
+                      <button 
+                        onClick={() => generateShareableWorkspace()} 
+                        disabled={isGeneratingShare} 
+                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-white/80 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Regenerate</span>
+                      </button>
+                      <button 
+                        onClick={generatePublicLink} 
+                        disabled={isGeneratingLink || isGeneratingShare} 
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all flex items-center gap-1.5 cursor-pointer ${isGeneratingLink ? 'opacity-50 bg-white/10' : 'bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-500/25 disabled:opacity-50'}`}
+                      >
+                        {isGeneratingLink ? "Generating..." : <><Share2 className="w-3.5 h-3.5" /> Get Public Link</>}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -3316,7 +3346,8 @@ const MarkdownPreview = ({ content }: { content: string }) => {
               href={safeUrl} 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-medium break-all"
+              className="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-medium break-words [word-break:break-word]"
+              title={safeUrl}
             >
               {label || safeUrl}
             </a>
@@ -3331,7 +3362,8 @@ const MarkdownPreview = ({ content }: { content: string }) => {
             href={safeUrl} 
             target="_blank" 
             rel="noopener noreferrer" 
-            className="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-medium break-all"
+            className="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-medium break-words [word-break:break-word]"
+            title={safeUrl}
           >
             {part}
           </a>
@@ -3343,25 +3375,36 @@ const MarkdownPreview = ({ content }: { content: string }) => {
 
   const flushTable = (key: number) => {
     if (currentTableHeaders.length > 0 || currentTableRows.length > 0) {
+      const colCount = currentTableHeaders.length || (currentTableRows[0]?.length ?? 3);
       rendered.push(
-        <div key={`table-${key}`} className="overflow-x-auto my-3 rounded-xl border border-white/10 bg-white/[0.02]">
-          <table className="w-full text-left border-collapse text-xs">
+        <div key={`table-${key}`} className="overflow-x-auto my-3 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm">
+          <table className="w-full text-left border-collapse text-xs table-fixed">
             {currentTableHeaders.length > 0 && (
               <thead>
-                <tr className="bg-white/5 border-b border-white/10">
-                  {currentTableHeaders.map((h, i) => (
-                    <th key={i} className="p-2.5 font-semibold text-white whitespace-nowrap min-w-[90px]">
-                      {renderInline(h)}
-                    </th>
-                  ))}
+                <tr className="bg-white/[0.05] border-b border-white/10">
+                  {currentTableHeaders.map((h, i) => {
+                    let colWidth = '';
+                    if (colCount === 3) {
+                      if (i === 0) colWidth = 'w-[28%] min-w-[120px]';
+                      else if (i === 1) colWidth = 'w-[28%] min-w-[130px]';
+                      else colWidth = 'w-[44%] min-w-[180px]';
+                    } else if (colCount === 2) {
+                      colWidth = i === 0 ? 'w-[35%]' : 'w-[65%]';
+                    }
+                    return (
+                      <th key={i} className={`p-3 font-semibold text-white/90 uppercase tracking-wider text-[11px] ${colWidth}`}>
+                        {renderInline(h)}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
             )}
-            <tbody>
+            <tbody className="divide-y divide-white/5">
               {currentTableRows.map((row, ri) => (
-                <tr key={ri} className="border-b border-white/5 hover:bg-white/[0.02] last:border-0">
+                <tr key={ri} className="hover:bg-white/[0.02] transition-colors">
                   {row.map((cell, ci) => (
-                    <td key={ci} className="p-2.5 text-white/80 min-w-[90px] max-w-[280px] break-words">
+                    <td key={ci} className="p-3 text-white/80 align-top leading-relaxed text-xs break-words">
                       {renderInline(cell)}
                     </td>
                   ))}
@@ -3392,24 +3435,44 @@ const MarkdownPreview = ({ content }: { content: string }) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     
-    if (line.startsWith('|') && line.endsWith('|')) {
-      if (isInsideList) {
-        flushList(i);
+    if (line.includes('|')) {
+      let rawLine = line;
+      if (rawLine.startsWith('|')) rawLine = rawLine.substring(1);
+      if (rawLine.endsWith('|')) rawLine = rawLine.substring(0, rawLine.length - 1);
+      
+      let cells = rawLine.split('|').map(c => c.trim());
+      while (cells.length > 0 && cells[cells.length - 1] === '') {
+        cells.pop();
       }
-      
-      const cells = line.split('|').slice(1, -1).map(c => c.trim());
-      const isSeparator = cells.every(c => c.match(/^-+$/) || c === '');
-      
+
+      const isSeparator = cells.length > 0 && cells.every(c => /^:?-+:?$/.test(c) || c === '');
+
       if (isSeparator) {
         isInsideTable = true;
         continue;
       }
-      
-      if (!isInsideTable) {
-        currentTableHeaders = cells;
-        isInsideTable = true;
-      } else {
-        currentTableRows.push(cells);
+
+      if (cells.length > 0) {
+        if (isInsideList) {
+          flushList(i);
+        }
+
+        if (!isInsideTable) {
+          currentTableHeaders = cells;
+          isInsideTable = true;
+        } else {
+          if (currentTableHeaders.length > 0) {
+            if (cells.length > currentTableHeaders.length) {
+              cells = cells.slice(0, currentTableHeaders.length);
+            } else {
+              while (cells.length < currentTableHeaders.length) {
+                cells.push('');
+              }
+            }
+          }
+          currentTableRows.push(cells);
+        }
+        continue;
       }
     } else {
       if (isInsideTable) {

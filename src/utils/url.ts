@@ -84,3 +84,28 @@ export function sanitizeForPrompt(text: string): string {
   // eslint-disable-next-line no-control-regex
   return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
 }
+
+/**
+ * Strips notification counters like (10), (99+), [2], (*), and leading numbers from tab titles.
+ */
+export function cleanTabTitle(title?: string): string {
+  if (!title) return 'Untitled';
+  let clean = title;
+  clean = clean.replace(/^[\(\[\{]\s*(?:\d+\+?|[\*\•\!])\s*[\)\]\}]\s*/g, '');
+  clean = clean.replace(/^\d+[\.\-\)]\s+/g, '');
+  clean = clean.trim();
+  return clean || title;
+}
+
+/**
+ * Extracts a clean domain string (e.g. "youtube.com", "chatgpt.com") from a URL.
+ */
+export function getCleanDomain(url?: string): string {
+  if (!url) return '';
+  try {
+    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+    return parsed.hostname.replace(/^www\./, '');
+  } catch {
+    return url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+  }
+}

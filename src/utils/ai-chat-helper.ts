@@ -3,7 +3,7 @@
  * Shared system prompt, context builder, and response sanitizer/command parser.
  */
 
-import { sanitizeForPrompt, isValidUrl } from './url';
+import { sanitizeForPrompt, isValidUrl, cleanTabTitle } from './url';
 import type { WorkspaceSession } from '../storage/db';
 
 export interface PendingCommand {
@@ -87,6 +87,15 @@ CRITICAL INSTRUCTIONS & FORMAT PROTOCOL:
    - COMMAND: CLEAR_SCHEDULE folder="<folder_name_or_id>" url="<optional_tab_url>"
    - COMMAND: LOCK_FOLDER folder="<folder_name_or_id>"
 
+8. CRITICAL RULE FOR TAB ORGANIZATION & SAVING TABS INTO FOLDERS:
+   - You CANNOT organize tabs or create folders by merely writing conversational text.
+   - When the user asks to organize, group, or save tabs into folders, OR whenever the user confirms / replies "yes", "proceed", "sure", or "go ahead" after a proposed folder categorization:
+     a) Announce the folders you are organizing the tabs into.
+     b) YOU MUST EMIT A COMMAND LINE FOR EACH TAB:
+        COMMAND: ADD_TAB folder="<FolderName>" url="<TabURL>" title="<TabTitle>"
+     c) NEVER say "Your tabs have been successfully organized into folders" or "Adding tab to folder" without appending the corresponding COMMAND: ADD_TAB commands at the very end!
+     d) If you do not append the COMMAND: ADD_TAB lines, NO FOLDERS OR TABS WILL BE CREATED IN TABFLOW!
+
 Output ONLY user-facing markdown text followed optionally by one or more COMMAND: lines.`;
 }
 
@@ -105,7 +114,8 @@ export function buildChatFullPrompt(
     contextStr += "(No external browser tabs currently open. The user only has Tabflow open.)\n\n";
   } else {
     for (const tab of userTabs) {
-      contextStr += `- Title: "${sanitizeForPrompt(tab.title || tab.url || 'Untitled')}"\n  URL: ${tab.url}\n`;
+      const cleanTitle = cleanTabTitle(sanitizeForPrompt(tab.title || tab.url || 'Untitled'));
+      contextStr += `- Title: "${cleanTitle}"\n  URL: ${tab.url}\n`;
     }
     contextStr += "\n";
   }
@@ -124,7 +134,8 @@ export function buildChatFullPrompt(
         folderContextStr += "    (No tabs in this folder)\n";
       } else {
         for (const tab of session.tabs) {
-          folderContextStr += `    * "${sanitizeForPrompt(tab.title || tab.url || 'Untitled')}" — ${tab.url}\n`;
+          const cleanTitle = cleanTabTitle(sanitizeForPrompt(tab.title || tab.url || 'Untitled'));
+          folderContextStr += `    * "${cleanTitle}" — ${tab.url}\n`;
         }
       }
     }
@@ -214,7 +225,121 @@ export function extractCommandsAndCleanText(
     }
   }
 
-  // 3. Strip all tool commands and XML tags from response
+  // 3. Fallback Tab Organization: If no ADD_TAB command was explicitly emitted,
+  // detect conversational folder organization or tab categorization
+  if (!pendingCommands.some(c => c.type === 'ADD_TAB')) {
+    const textLines = rawText.split('\n');
+    let activeFolder: string | null = null;
+    const allKnownTabs = [...openTabs];
+    if (folders && Array.isArray(folders)) {
+      folders.forEach(f => {
+        if (f.tabs) allKnownTabs.push(...f.tabs);
+      });
+    }
+
+    const findMatchingTab = (tabName: string): { title?: string; url?: string } | undefined => {
+      const cleanName = cleanTabTitle(tabName).toLowerCase();
+      return allKnownTabs.find(t => {
+        if (!t) return false;
+        const tTitle = cleanTabTitle(t.title || '').toLowerCase();
+        const tUrl = (t.url || '').toLowerCase();
+        if (tTitle && (tTitle === cleanName || tTitle.includes(cleanName) || cleanName.includes(tTitle))) return true;
+        if (cleanName.includes('chatgpt') && tUrl.includes('chatgpt')) return true;
+        if (cleanName.includes('gemini') && tUrl.includes('gemini')) return true;
+        if (cleanName.includes('openrouter') && tUrl.includes('openrouter')) return true;
+        if (cleanName.includes('youtube') && tUrl.includes('youtube')) return true;
+        if ((cleanName.includes('twitter') || cleanName.includes('x (')) && (tUrl.includes('twitter') || tUrl.includes('x.com'))) return true;
+        if (cleanName.includes('linkedin') && tUrl.includes('linkedin')) return true;
+        if (cleanName.includes('keep') && tUrl.includes('keep.google')) return true;
+        if (cleanName.includes('apollo') && tUrl.includes('apollo.io')) return true;
+        if (cleanName.includes('maps') && (tUrl.includes('maps') || tUrl.includes('apify'))) return true;
+        if (cleanName.includes('color hunt') && tUrl.includes('colorhunt')) return true;
+        if (cleanName.includes('github') && tUrl.includes('github')) return true;
+        if (cleanName.includes('vercel') && tUrl.includes('vercel')) return true;
+        return false;
+      });
+    };
+
+    for (const rawLine of textLines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      const folderHeaderMatch = line.match(/^(?:###\s*|\*\*\s*|\d+[\.\)]\s*)?([A-Za-z0-9\s&/\-_]+?)(?:\s+Folder|\s+Workspace)?(?:\*\*)?:\s*$/i);
+      if (
+        folderHeaderMatch &&
+        !line.toLowerCase().includes('proposed folder') &&
+        !line.toLowerCase().includes('creating and organizing') &&
+        !line.toLowerCase().includes('organize your')
+      ) {
+        const potentialFolder = folderHeaderMatch[1].trim();
+        if (potentialFolder.length >= 2 && potentialFolder.length <= 40) {
+          activeFolder = potentialFolder;
+          continue;
+        }
+      }
+
+      const addingMatch = line.match(/^Adding\s+(.+?)\s+to\s+(?:the\s+)?(.+?)(?:\s+folder|\s+workspace)?$/i);
+      if (addingMatch) {
+        const tabTitle = addingMatch[1].trim();
+        const targetFolder = (addingMatch[2]?.trim() || activeFolder || 'General').replace(/^["']|["']$/g, '');
+        const matched = findMatchingTab(tabTitle);
+        if (matched && matched.url) {
+          const alreadyAdded = pendingCommands.some(c => c.type === 'ADD_TAB' && c.args.url === matched.url);
+          if (!alreadyAdded) {
+            pendingCommands.push({
+              type: 'ADD_TAB',
+              args: { folder: targetFolder, url: matched.url, title: cleanTabTitle(matched.title || tabTitle) },
+              raw: `COMMAND: ADD_TAB folder="${targetFolder}" url="${matched.url}" title="${cleanTabTitle(matched.title || tabTitle)}"`
+            });
+          }
+        }
+        continue;
+      }
+
+      if (activeFolder) {
+        const urlMatch = line.match(/^(?:[-*•]\s*)?(?:\[(.+?)\]\((https?:\/\/[^\s)]+)\)|([^(]+?)\s*\((https?:\/\/[^\s)]+)\))/i);
+        if (urlMatch) {
+          const tabTitle = cleanTabTitle((urlMatch[1] || urlMatch[3] || '').trim());
+          const tabUrl = (urlMatch[2] || urlMatch[4] || '').trim();
+          if (isValidUrl(tabUrl)) {
+            const alreadyAdded = pendingCommands.some(c => c.type === 'ADD_TAB' && c.args.url === tabUrl);
+            if (!alreadyAdded) {
+              pendingCommands.push({
+                type: 'ADD_TAB',
+                args: { folder: activeFolder, url: tabUrl, title: tabTitle || tabUrl },
+                raw: `COMMAND: ADD_TAB folder="${activeFolder}" url="${tabUrl}" title="${tabTitle || tabUrl}"`
+              });
+            }
+          }
+          continue;
+        }
+
+        const inlineListMatch = line.match(/^([A-Za-z0-9\s&/\-_]+?)\s*[-–—:]\s*(.+)$/i);
+        if (inlineListMatch && !line.startsWith('Adding') && !line.toLowerCase().startsWith('http')) {
+          const folderCandidate = inlineListMatch[1].trim();
+          const itemsStr = inlineListMatch[2].trim();
+          if (folderCandidate.length >= 2 && folderCandidate.length <= 40 && itemsStr.includes(',')) {
+            const items = itemsStr.split(',').map(s => s.trim());
+            for (const item of items) {
+              const matched = findMatchingTab(item);
+              if (matched && matched.url) {
+                const alreadyAdded = pendingCommands.some(c => c.type === 'ADD_TAB' && c.args.url === matched.url);
+                if (!alreadyAdded) {
+                  pendingCommands.push({
+                    type: 'ADD_TAB',
+                    args: { folder: folderCandidate, url: matched.url, title: cleanTabTitle(matched.title || item) },
+                    raw: `COMMAND: ADD_TAB folder="${folderCandidate}" url="${matched.url}" title="${cleanTabTitle(matched.title || item)}"`
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Strip all tool commands and XML tags from response
   let cleaned = rawText;
   for (const cmd of commandsFound) {
     cleaned = cleaned.replace(cmd, '');

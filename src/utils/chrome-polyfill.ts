@@ -1,5 +1,5 @@
 import { getSessions, saveSession, deleteSession, WorkspaceSession } from '../storage/db';
-import { isSameUrl } from './url';
+import { isSameUrl, cleanTabTitle, sanitizeUrl, isValidUrl } from './url';
 
 const isExtension = 
   typeof chrome !== 'undefined' && 
@@ -398,6 +398,103 @@ if (typeof window !== 'undefined') {
                       messageListeners.forEach(l => {
                         try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
                       });
+                    }
+                  }
+                } else if (cmd.type === 'ADD_TAB' && cmd.args?.folder && cmd.args?.url) {
+                  const sessions = await getSessions();
+                  const folderName = (cmd.args.folder || 'General').replace(/^["']|["']$/g, '').trim();
+                  let target = sessions.find(s => s.id === cmd.args.folder || s.name.toLowerCase() === folderName.toLowerCase());
+                  if (!target) {
+                    target = {
+                      id: 'session-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+                      name: folderName,
+                      timestamp: Date.now(),
+                      tabs: [],
+                      contextSummary: 'Created by AI Assistant'
+                    };
+                    sessions.push(target);
+                  }
+                  const safeUrl = sanitizeUrl(cmd.args.url);
+                  if (isValidUrl(safeUrl) && !target.isLocked) {
+                    if (!target.tabs.some(t => isSameUrl(t.url, safeUrl))) {
+                      target.tabs.push({
+                        url: safeUrl,
+                        title: cleanTabTitle(cmd.args.title || safeUrl)
+                      });
+                      await saveSession(target);
+                      messageListeners.forEach(l => {
+                        try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+                      });
+                    }
+                  }
+                } else if (cmd.type === 'DELETE_TAB' && cmd.args?.folder && cmd.args?.url) {
+                  const sessions = await getSessions();
+                  const target = sessions.find(s => s.id === cmd.args.folder || s.name.toLowerCase() === (cmd.args.folder || '').toLowerCase());
+                  if (target && !target.isLocked) {
+                    target.tabs = target.tabs.filter(t => !isSameUrl(t.url, cmd.args.url));
+                    await saveSession(target);
+                    messageListeners.forEach(l => {
+                      try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+                    });
+                  }
+                } else if (cmd.type === 'DELETE_FOLDER' && (cmd.args?.folder || cmd.raw)) {
+                  const folderTarget = cmd.args?.folder || cmd.raw.replace(/.*?folder="([^"]+)".*/, '$1');
+                  const sessions = await getSessions();
+                  const target = sessions.find(s => s.id === folderTarget || s.name.toLowerCase() === folderTarget.toLowerCase());
+                  if (target && !target.isLocked) {
+                    await deleteSession(target.id);
+                    messageListeners.forEach(l => {
+                      try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+                    });
+                  }
+                } else if (cmd.type === 'RENAME_FOLDER' && cmd.args?.folder && cmd.args?.new_name) {
+                  const sessions = await getSessions();
+                  const target = sessions.find(s => s.id === cmd.args.folder || s.name.toLowerCase() === cmd.args.folder.toLowerCase());
+                  if (target && !target.isLocked) {
+                    target.name = cmd.args.new_name.replace(/^["']|["']$/g, '').trim();
+                    await saveSession(target);
+                    messageListeners.forEach(l => {
+                      try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+                    });
+                  }
+                } else if (cmd.type === 'COPY_TAB' && cmd.args?.src && cmd.args?.dest && cmd.args?.url) {
+                  const sessions = await getSessions();
+                  const src = sessions.find(s => s.id === cmd.args.src || s.name.toLowerCase() === cmd.args.src.toLowerCase());
+                  let dest = sessions.find(s => s.id === cmd.args.dest || s.name.toLowerCase() === cmd.args.dest.toLowerCase());
+                  if (!dest) {
+                    const newDest: WorkspaceSession = {
+                      id: 'session-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+                      name: cmd.args.dest.trim(),
+                      timestamp: Date.now(),
+                      tabs: [],
+                      contextSummary: 'Created by AI Assistant'
+                    };
+                    sessions.push(newDest);
+                    dest = newDest;
+                  }
+                  if (src && dest && !src.isLocked && !dest.isLocked) {
+                    const tabToCopy = src.tabs.find(t => isSameUrl(t.url, cmd.args.url));
+                    if (tabToCopy && !dest.tabs.some(t => isSameUrl(t.url, tabToCopy.url))) {
+                      dest.tabs.push({ ...tabToCopy });
+                      await saveSession(dest);
+                      messageListeners.forEach(l => {
+                        try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+                      });
+                    }
+                  }
+                } else if (cmd.type === 'RESTORE_FOLDER' && cmd.args?.folder) {
+                  const sessions = await getSessions();
+                  const target = sessions.find(s => s.id === cmd.args.folder || s.name.toLowerCase() === cmd.args.folder.toLowerCase());
+                  if (target && !target.isLocked) {
+                    for (const t of target.tabs) {
+                      mockTabsState.push({
+                        id: Date.now() + Math.floor(Math.random() * 1000),
+                        windowId: 1,
+                        title: t.title,
+                        url: t.url,
+                        active: false
+                      });
+                      try { window.open(t.url, '_blank'); } catch {}
                     }
                   }
                 }
