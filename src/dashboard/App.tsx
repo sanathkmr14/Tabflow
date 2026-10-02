@@ -157,7 +157,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Global Modern Professional Toast Notification (Strictly One Line) */}
+      {/* Global Modern Professional Toast Notification (No Truncation) */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
@@ -165,7 +165,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 15, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 450, damping: 30 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] max-w-[92vw] sm:max-w-[540px] flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-[#0c111c]/95 backdrop-blur-xl border border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.06)]"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] max-w-[94vw] sm:max-w-[680px] flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#0c111c]/95 backdrop-blur-xl border border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.06)]"
           >
             {toastMessage.type === 'error' && (
               <div className="w-5 h-5 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0 text-red-400">
@@ -188,19 +188,19 @@ export default function App() {
               </div>
             )}
             
-            <div className="flex items-center gap-1.5 min-w-0 text-xs whitespace-nowrap overflow-hidden">
+            <div className="flex items-center gap-2 min-w-0 text-xs text-left">
               <span className="font-semibold text-white tracking-tight shrink-0">{toastMessage.title}</span>
               {toastMessage.description && (
                 <>
                   <span className="text-white/25 shrink-0">•</span>
-                  <span className="text-white/60 truncate max-w-[320px]">{toastMessage.description}</span>
+                  <span className="text-white/70 leading-normal">{toastMessage.description}</span>
                 </>
               )}
             </div>
 
             <button 
               onClick={() => setToastMessage(null)} 
-              className="w-5 h-5 rounded-full text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors shrink-0 ml-0.5"
+              className="w-5 h-5 rounded-full text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors shrink-0 ml-1"
               title="Dismiss"
             >
               <X className="w-3 h-3" />
@@ -4623,7 +4623,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     }
 
     if (isLayoutFrozen) {
-      showToast('Layout Locked', 'Workspace layout is locked. Unlock at top right to reposition folders or move tabs.', 'info');
+      showToast('Layout Locked', 'Unlock layout at top right to reposition folders or move tabs.', 'info');
       setDraggedNodeId(null);
       draggedRef.current = false;
       return;
@@ -4661,7 +4661,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       if (isLayoutFrozen) {
         setDraggedNodeId(null);
         setDropTargetFolderId(null);
-        showToast('Layout Locked', 'Workspace layout is locked. Unlock at top right to reposition folders or move tabs.', 'info');
+        showToast('Layout Locked', 'Unlock layout at top right to reposition folders or move tabs.', 'info');
         return;
       }
       draggedRef.current = true;
@@ -4706,7 +4706,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       if (isLayoutFrozen) {
         setDraggedNodeId(null);
         setIsPanning(false);
-        showToast('Layout Locked', 'Workspace layout is locked. Unlock at top right to reposition folders or move tabs.', 'info');
+        showToast('Layout Locked', 'Unlock layout at top right to reposition folders or move tabs.', 'info');
         initializeLayout(foldersList, Array.from(visibleFolderIds), true, savedPositionsRef.current, expandedMapFoldersRef.current);
         return;
       }
