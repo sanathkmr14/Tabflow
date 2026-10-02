@@ -2130,6 +2130,17 @@ Strict Table Formatting Requirements:
               >
                 Select All
               </button>
+              {filteredFolders.some(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)) && (
+                <button 
+                  onClick={() => {
+                    const emptyIds = new Set(filteredFolders.filter(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)).map(f => f.id));
+                    setSelectedFolderIds(emptyIds);
+                  }}
+                  className="bg-white/5 hover:bg-white/10 text-red-400 hover:text-red-300 border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                >
+                  Select Empty ({filteredFolders.filter(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)).length})
+                </button>
+              )}
               <button 
                 onClick={() => setSelectedFolderIds(new Set())} 
                 className="bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
@@ -2181,6 +2192,19 @@ Strict Table Formatting Requirements:
               }} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium">
                 <Upload className="w-3.5 h-3.5" /> Export
               </button>
+              {folders.some(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)) && (
+                <button 
+                  onClick={() => {
+                    const emptyIds = folders.filter(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)).map(f => f.id);
+                    setSelectedFolderIds(new Set(emptyIds));
+                    setShowBulkDeleteModal(true);
+                  }}
+                  className="flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
+                  title="Clean up empty workspace folders"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Clean Empty ({folders.filter(f => !f.isLocked && (!f.tabs || f.tabs.length === 0)).length})
+                </button>
+              )}
               {folders.length > 0 && (
                 <button 
                   onClick={() => setIsSelectMode(true)} 
@@ -2437,10 +2461,24 @@ Strict Table Formatting Requirements:
                     <Trash2 className="w-5 h-5" />
                   </div>
                   <h3 className="text-sm font-semibold text-white tracking-tight mb-1">
-                    {selectedFolderIds.size === 1 ? 'Delete Workspace Folder?' : 'Delete Selected Folders?'}
+                    {(() => {
+                      const isAllEmpty = Array.from(selectedFolderIds).every(id => {
+                        const f = folders.find(folder => folder.id === id);
+                        return f && !f.isLocked && (!f.tabs || f.tabs.length === 0);
+                      });
+                      if (isAllEmpty) {
+                        return selectedFolderIds.size === 1 ? 'Delete Empty Folder?' : `Delete ${selectedFolderIds.size} Empty Folders?`;
+                      }
+                      return selectedFolderIds.size === 1 ? 'Delete Workspace Folder?' : 'Delete Selected Folders?';
+                    })()}
                   </h3>
                   <p className="text-xs text-white/50 mb-3.5 leading-normal">
-                    Permanently deletes selected folders, tabs, and timers.
+                    {Array.from(selectedFolderIds).every(id => {
+                      const f = folders.find(folder => folder.id === id);
+                      return f && !f.isLocked && (!f.tabs || f.tabs.length === 0);
+                    })
+                      ? 'Permanently deletes the selected empty workspace folders.'
+                      : 'Permanently deletes selected folders, tabs, and timers.'}
                   </p>
                   <div className="flex items-center justify-center gap-2">
                     <button 
@@ -5006,6 +5044,18 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                   title="Show all workspaces on map"
                 >
                   All
+                </button>
+                <span className="text-white/20">/</span>
+                <button 
+                  onClick={() => {
+                    const activeIds = foldersList.filter(f => (f.tabs && f.tabs.length > 0) || f.isLocked).map(f => f.id);
+                    setVisibleFolderIds(new Set(activeIds));
+                    initializeLayout(foldersList, activeIds);
+                  }}
+                  className="text-cyan-400 hover:text-cyan-300 font-medium transition-colors cursor-pointer"
+                  title="Show only workspaces with tabs"
+                >
+                  Active
                 </button>
                 <span className="text-white/20">/</span>
                 <button 

@@ -4,7 +4,6 @@
  */
 
 import { sanitizeForPrompt, isValidUrl, cleanTabTitle } from './url';
-import type { WorkspaceSession } from '../storage/db';
 
 export interface PendingCommand {
   type: string;
@@ -96,6 +95,13 @@ CRITICAL INSTRUCTIONS & FORMAT PROTOCOL:
         COMMAND: ADD_TAB folder="<FolderName>" url="<TabURL>" title="<TabTitle>"
      c) NEVER say "Your tabs have been successfully organized into folders" or "Adding tab to folder" without appending the corresponding COMMAND: ADD_TAB commands at the very end!
      d) If you do not append the COMMAND: ADD_TAB lines, NO FOLDERS OR TABS WILL BE CREATED IN TABFLOW!
+
+9. EMPTY FOLDER CLEANUP & MANAGEMENT:
+   - When the user asks to clean up, remove, or delete empty folders (or unused folders with 0 tabs):
+     a) Identify each unlocked folder in "SAVED WORKSPACE FOLDERS" that contains 0 tabs.
+     b) Inform the user which empty folder(s) are being removed.
+     c) YOU MUST EMIT A COMMAND LINE FOR EACH EMPTY FOLDER:
+        COMMAND: DELETE_FOLDER folder="<folder_id_or_name>"
 
 Output ONLY user-facing markdown text followed optionally by one or more COMMAND: lines.`;
 }
