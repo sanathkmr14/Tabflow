@@ -60,12 +60,18 @@ export function sanitizeUrl(url: string): string {
  * - Trailing slash
  * - Query string and hash
  */
-export function isSameUrl(url1: string, url2: string): boolean {
+export function isSameUrl(url1?: string, url2?: string): boolean {
+  if (!url1 || !url2) return false;
   const clean = (url: string) => {
     const noQueryOrHash = url.split('?')[0].split('#')[0];
-    return noQueryOrHash.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '').toLowerCase();
+    return noQueryOrHash.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/+$/, '').toLowerCase();
   };
-  return clean(url1) === clean(url2);
+  const c1 = clean(url1);
+  const c2 = clean(url2);
+  if (!c1 || !c2) return false;
+  if (c1 === c2) return true;
+  if (c1.startsWith(c2 + '/') || c2.startsWith(c1 + '/')) return true;
+  return false;
 }
 
 /**

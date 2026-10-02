@@ -39,4 +39,5 @@ const metaDescription = document.querySelector('meta[name="description"]')?.getA
 // IMPORTANT: This expression MUST be the last statement in the file.
 // chrome.scripting.executeScript uses it as the return value.
 // Do NOT add any code after this line.
+// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 ({ text, metaDescription });

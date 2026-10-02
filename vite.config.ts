@@ -17,7 +17,7 @@ export default defineConfig({
         "src/content/extractor.ts",
         "src/dashboard/index.html"
       ],
-      disableAutoLaunch: false,
+      disableAutoLaunch: true,
       skipManifestValidation: true,
     }),
   ],

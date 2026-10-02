@@ -1,7 +1,25 @@
+import '@/utils/chrome-polyfill';
 import React, { Component, ErrorInfo } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import '@/styles/globals.css';
+
+// Ensure browser tab displays the Tabflow logo favicon
+try {
+  const faviconUrl = typeof chrome !== 'undefined' && chrome?.runtime?.getURL 
+    ? chrome.runtime.getURL('favicon.svg') 
+    : '/favicon.svg';
+  let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    document.head.appendChild(link);
+  }
+  link.type = 'image/svg+xml';
+  link.href = faviconUrl;
+} catch (e) {
+  console.error('Failed to set favicon:', e);
+}
 
 class ErrorBoundary extends Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
   constructor(props: {children: React.ReactNode}) {

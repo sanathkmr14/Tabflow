@@ -1,13 +1,424 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>task</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Tabflow — AI-Powered Browser Workspace</title>
+    <meta name="description" content="Tabflow is an open-source browser extension that organizes tabs into intelligent workspaces, visualizes domain relationships, schedules focus hours, and encrypts folders with AES-256.">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2">
+    <link rel="shortcut icon" href="/favicon.svg?v=2">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Pure Blue Aurora Animated Lighting -->
+    <div class="aurora-bg">
+        <div class="aurora-glow glow-1"></div>
+        <div class="aurora-glow glow-2"></div>
+        <div class="aurora-glow glow-3"></div>
+        <div class="bg-grid"></div>
+    </div>
+
+    <div class="container">
+        <!-- Floating Glassmorphic Header -->
+        <header>
+            <div class="nav-left-mobile">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle navigation">
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                </button>
+            </div>
+
+            <a href="/" class="brand">
+                <div class="brand-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="30" height="30">
+                      <defs>
+                        <linearGradient id="hb" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2e4070"/><stop offset="100%" stop-color="#425B9A"/></linearGradient>
+                        <linearGradient id="hm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#76C0EC"/><stop offset="100%" stop-color="#55aee0"/></linearGradient>
+                        <linearGradient id="hf" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#425B9A"/><stop offset="100%" stop-color="#5470b8"/></linearGradient>
+                      </defs>
+                      <rect x="4" y="16" width="42" height="12" rx="4" fill="url(#hb)"/>
+                      <rect x="7" y="26" width="42" height="12" rx="4" fill="url(#hm)"/>
+                      <rect x="10" y="36" width="42" height="12" rx="4" fill="url(#hf)"/>
+                      <circle cx="18" cy="42" r="2.2" fill="#FF5F57"/>
+                      <circle cx="24.5" cy="42" r="2.2" fill="#FEBC2E"/>
+                      <circle cx="31" cy="42" r="2.2" fill="#28C840"/>
+                    </svg>
+                </div>
+                <span style="color:#425B9A;font-weight:700;">Tabflow</span>
+            </a>
+
+            <!-- Centered Nav Links (Desktop Only) -->
+            <nav class="nav-center">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#install" class="nav-link">Quick Install</a>
+                <a href="#faq" class="nav-link">FAQs</a>
+            </nav>
+
+            <div class="nav-right">
+                <a href="https://github.com/sanathkmr14/Tabflow" target="_blank" rel="noopener noreferrer" class="btn-github">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+                    GitHub
+                </a>
+            </div>
+
+            <!-- Mobile Dropdown Navigation (Simple & Clean) -->
+            <div class="mobile-nav-dropdown" id="mobileNavDropdown">
+                <a href="#features" class="mobile-nav-link">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                    <span>Features</span>
+                </a>
+                <a href="#install" class="mobile-nav-link">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    <span>Quick Install</span>
+                </a>
+                <a href="#faq" class="mobile-nav-link">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>FAQs</span>
+                </a>
+            </div>
+        </header>
+
+        <main>
+            <!-- Hero Section -->
+            <section class="hero">
+                <div class="animated-badge">
+                    <span class="pulsing-dot"></span>
+                    <span class="badge-text">Available for Chrome, Edge, Brave & Opera • Manifest V3</span>
+                </div>
+                
+                <h1 class="hero-title">
+                    Your browser extension, <span class="gradient-shimmer">supercharged by AI.</span>
+                </h1>
+                
+                <div class="hero-subtitle-group">
+                    <p class="hero-sentence hero-sentence-1">
+                        Tabflow organizes tabs into smart workspaces <br class="mobile-line-break">with automated schedules & AES-256 encryption.
+                    </p>
+                    <p class="hero-sentence hero-sentence-2">
+                        Let your personal AI assistant control your browser.
+                    </p>
+                </div>
+
+                <div class="cta-group">
+                    <a href="/tabflow_extension.zip" download="tabflow_extension.zip" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                        Download Extension (.zip)
+                    </a>
+                    <a href="#install" class="btn btn-secondary">
+                        Installation Guide
+                    </a>
+                </div>
+            </section>
+
+            <!-- Centered Core Features Section -->
+            <section id="features" class="features-section">
+                <div class="section-header">
+                    <span class="section-tag">Features</span>
+                    <h2 class="section-title">Tabs In. Chaos Out.</h2>
+                    <p class="section-subtitle">Organize, secure & automate your browser.</p>
+                </div>
+
+                <div class="features-list">
+                    <!-- Feature 1: AI Assistant -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
+                        </div>
+                        <div class="feature-body">
+                            <h3>AI Browser Assistant (BYOK)</h3>
+                            <ul class="feature-points">
+                                <li><strong>AI Commands:</strong> Close clutter tabs, group research, or summarize pages easily.</li>
+                                <li><strong>BYOK Keys:</strong> Connect free Gemini, OpenAI, or OpenRouter API keys safely.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Feature 2: Interactive Workspace Map -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                        </div>
+                        <div class="feature-body">
+                            <h3>Interactive Workspace Map</h3>
+                            <ul class="feature-points">
+                                <li><strong>Visual Canvas:</strong> Drag and explore tabs and workspaces as interactive nodes.</li>
+                                <li><strong>Domain Links:</strong> Automatically connects related research tabs together.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Feature 3: PBKDF2 Password Protection -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        </div>
+                        <div class="feature-body">
+                            <h3>Password-Protected Folders</h3>
+                            <ul class="feature-points">
+                                <li><strong>AES-256 Encryption:</strong> Lock private folders with 100,000 PBKDF2 rounds.</li>
+                                <li><strong>Total Privacy:</strong> Locked tabs stay hidden from both UI and AI assistant.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Feature 4: Smart Scheduling -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        </div>
+                        <div class="feature-body">
+                            <h3>Automated Tab & Folder Scheduling</h3>
+                            <ul class="feature-points">
+                                <li><strong>Timed Routines:</strong> Open daily workspaces and auto-close distracting tabs.</li>
+                                <li><strong>Chrome Alarms:</strong> Operates silently in the background with zero lag.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Feature 5: Smart Launcher -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+                        </div>
+                        <div class="feature-body">
+                            <h3>Smart Command Launcher</h3>
+                            <ul class="feature-points">
+                                <li><strong>Instant Shortcut:</strong> Press <strong>Cmd/Ctrl+Shift+K</strong> from any browser tab.</li>
+                                <li><strong>Quick Search:</strong> Find workspaces or trigger AI actions in seconds.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Feature 6: 100% Local & Private -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        </div>
+                        <div class="feature-body">
+                            <h3>100% Local-First & Private Storage</h3>
+                            <ul class="feature-points">
+                                <li><strong>IndexedDB Storage:</strong> All workspaces, sessions, and keys stay on your machine.</li>
+                                <li><strong>Zero Telemetry:</strong> No tracking, no remote servers, 100% private.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Modern 4-Step Installation Cards -->
+            <section id="install" class="installation-section">
+                <div class="section-header">
+                    <span class="section-tag">Quick Install</span>
+                    <h2 class="section-title">How to Install in 4 Steps</h2>
+                    <p class="section-subtitle">Compatible with Chrome, Brave, Edge, Opera & Vivaldi.</p>
+                </div>
+
+                <div class="steps-grid">
+                    <!-- Step 1 -->
+                    <div class="step-card">
+                        <div class="step-card-top">
+                            <div class="step-header-left">
+                                <span class="step-badge">01</span>
+                                <h4>Download & Unzip</h4>
+                            </div>
+                            <div class="step-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            </div>
+                        </div>
+                        <p class="step-desc">Click <strong>"Download Extension (.zip)"</strong> above. Extract the <span class="code-pill">tabflow_extension.zip</span> to any local folder.</p>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="step-card">
+                        <div class="step-card-top">
+                            <div class="step-header-left">
+                                <span class="step-badge">02</span>
+                                <h4>Enable Developer Mode</h4>
+                            </div>
+                            <div class="step-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            </div>
+                        </div>
+                        <p class="step-desc step-desc-line">Open <span class="code-pill">chrome://extensions</span> and toggle <strong>Developer mode</strong>.</p>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="step-card">
+                        <div class="step-card-top">
+                            <div class="step-header-left">
+                                <span class="step-badge">03</span>
+                                <h4>Load Unpacked</h4>
+                            </div>
+                            <div class="step-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+                            </div>
+                        </div>
+                        <p class="step-desc">Click <strong>"Load unpacked"</strong> at top-left and select your unzipped <span class="code-pill">tabflow_extension</span> folder.</p>
+                    </div>
+
+                    <!-- Step 4 -->
+                    <div class="step-card">
+                        <div class="step-card-top">
+                            <div class="step-header-left">
+                                <span class="step-badge">04</span>
+                                <h4>Pin & Enjoy</h4>
+                            </div>
+                            <div class="step-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            </div>
+                        </div>
+                        <p class="step-desc">Pin Tabflow to toolbar for 1-click access. Turn on <strong>Allow in Incognito</strong> for private tabs.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Centered Modern FAQ Section -->
+            <section id="faq" class="faq-section">
+                <div class="section-header">
+                    <span class="section-tag">FAQs</span>
+                    <h2 class="section-title">Frequently Asked Questions</h2>
+                    <p class="section-subtitle">Clear answers on AI models, privacy & security.</p>
+                </div>
+
+                <div class="faq-list">
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>Which AI models are supported?</span>
+                            <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="faq-answer">
+                            <ul class="faq-points">
+                                <li><strong>BYOK Architecture:</strong> Connect your own free API keys for <strong>Gemini</strong>, <strong>OpenAI</strong>, or <strong>OpenRouter</strong>.</li>
+                                <li><strong>100% Local Storage:</strong> Keys are stored strictly in your browser's local IndexedDB.</li>
+                                <li><strong>Direct & Private:</strong> AI requests go straight to official endpoints with zero middleman servers.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>Does AI modify tabs without permission?</span>
+                            <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="faq-answer">
+                            <ul class="faq-points">
+                                <li><strong>No automatic actions:</strong> AI will never close, open, or move tabs on its own.</li>
+                                <li><strong>Confirm Actions Preview:</strong> A clear preview appears showing exactly what will happen.</li>
+                                <li><strong>Complete manual control:</strong> You choose to <strong>Approve</strong> or <strong>Reject</strong> before anything changes.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>How does AES-256 encryption work?</span>
+                            <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="faq-answer">
+                            <ul class="faq-points">
+                                <li><strong>Client-Side Encryption:</strong> Folders are locked using <strong>PBKDF2 (100,000 rounds)</strong> and AES-256.</li>
+                                <li><strong>Total Privacy:</strong> Locked tabs stay hidden from both the interface and the AI assistant.</li>
+                                <li><strong>Fail-Safe Recovery:</strong> Includes an emergency <strong>Recovery Word</strong> and a 15-minute <strong>Auto-Lock</strong> timer.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>Does Tabflow work offline?</span>
+                            <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="faq-answer">
+                            <ul class="faq-points">
+                                <li><strong>100% Offline Core:</strong> Organizing workspaces, dragging node maps, and scheduled alarms work without internet.</li>
+                                <li><strong>Saved in IndexedDB:</strong> All session data lives directly on your computer.</li>
+                                <li><strong>Internet only for AI:</strong> Connection is only needed when prompting external AI models.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-question">
+                            <span>Which browsers are supported?</span>
+                            <svg class="faq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <div class="faq-answer">
+                            <ul class="faq-points">
+                                <li><strong>Standard Manifest V3:</strong> Built on modern Chrome extension specifications.</li>
+                                <li><strong>Compatible Browsers:</strong> Runs natively on <strong>Google Chrome</strong>, <strong>Brave</strong>, <strong>Microsoft Edge</strong>, <strong>Opera</strong>, and <strong>Vivaldi</strong>.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Minimal Clean Footer -->
+        <footer>
+            <p>Tabflow — Made with <span style="color: #ef4444;">❤️</span> in India</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Interactive FAQ Accordion
+        document.querySelectorAll('.faq-question').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = btn.closest('.faq-item');
+                const isOpen = item.classList.contains('open');
+                document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+                if (!isOpen) item.classList.add('open');
+            });
+        });
+
+        // Mobile Navigation Toggle
+        const menuBtn = document.getElementById('mobileMenuBtn');
+        const mobileDropdown = document.getElementById('mobileNavDropdown');
+        if (menuBtn && mobileDropdown) {
+            menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = mobileDropdown.classList.toggle('open');
+                menuBtn.classList.toggle('active', isOpen);
+            });
+
+            document.querySelectorAll('.mobile-nav-link').forEach(link => {
+                link.addEventListener('click', () => {
+                    mobileDropdown.classList.remove('open');
+                    menuBtn.classList.remove('active');
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!mobileDropdown.contains(e.target) && !menuBtn.contains(e.target)) {
+                    mobileDropdown.classList.remove('open');
+                    menuBtn.classList.remove('active');
+                }
+            });
+
+            window.addEventListener('scroll', () => {
+                if (mobileDropdown.classList.contains('open')) {
+                    mobileDropdown.classList.remove('open');
+                    menuBtn.classList.remove('active');
+                }
+            }, { passive: true });
+        }
+
+        // Desktop Ambient Aurora Parallax
+        if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+            document.addEventListener('mousemove', (e) => {
+                const orbs = document.querySelectorAll('.aurora-glow');
+                const x = (window.innerWidth / 2 - e.pageX) * 0.02;
+                const y = (window.innerHeight / 2 - e.pageY) * 0.02;
+                orbs.forEach((orb, i) => {
+                    const factor = (i + 1) * 0.7;
+                    orb.style.transform = `translate3d(${x * factor}px, ${y * factor}px, 0)`;
+                });
+            });
+        }
+    </script>
+</body>
 </html>

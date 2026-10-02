@@ -3,12 +3,27 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Command, Sparkles, MessageSquare, Settings, 
-  Trash2, Send, User, Bot, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
-  Folder, Clock, Play, Pencil, Share2, Copy, Check, CheckSquare, XSquare, Pin, Star, Search, Download, Upload, Lock, Unlock, Key, AppWindow, Ghost, Info, Eye, EyeOff, Network, Plus
+  Trash2, Send, User, Bot, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  Folder, Clock, Play, Pencil, Share2, Copy, Check, CheckSquare, XSquare, Pin, Star, Search, Download, Upload, Lock, Unlock, Key, AppWindow, Ghost, Info, Eye, EyeOff, Network, Plus, AlertCircle, X, ExternalLink
 } from 'lucide-react';
 import { sha256 } from '../utils/crypto';
-import { sanitizeUrl, isValidUrl } from '../utils/url';
+import { sanitizeUrl, isValidUrl, isSameUrl } from '../utils/url';
+import { sanitizeStreamChunk } from '../utils/ai-chat-helper';
 import type { WorkspaceSession } from '../storage/db';
+
+const checkIncognitoAllowed = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    try {
+      if (chrome.extension && typeof chrome.extension.isAllowedIncognitoAccess === 'function') {
+        chrome.extension.isAllowedIncognitoAccess((allowed) => resolve(!!allowed));
+      } else {
+        resolve(false);
+      }
+    } catch {
+      resolve(false);
+    }
+  });
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'folders' | 'map' | 'settings'>('chat');
@@ -61,15 +76,22 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className="w-[280px] border-r border-white/[0.04] flex flex-col pt-8 pb-6 px-4 bg-black/20 backdrop-blur-3xl">
         <div className="flex items-center gap-3 px-4 mb-10 text-white">
-          <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.3)] border border-white/10 flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-white">
-              <rect x="8" y="4" width="14" height="12" rx="2" strokeWidth="1.5" opacity="0.4" />
-              <rect x="5" y="7" width="14" height="12" rx="2" strokeWidth="1.5" opacity="0.7" />
-              <rect x="2" y="10" width="14" height="12" rx="2" strokeWidth="1.5" fill="currentColor" fillOpacity="0.1" />
-              <path d="M4 14H14" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
+          <div className="w-8 h-8 rounded-xl bg-[#EEF4FB] border border-[#425B9A]/30 shadow-[0_2px_10px_rgba(66,91,154,0.35)] flex items-center justify-center p-1 transition-transform hover:scale-105">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="w-full h-full">
+              <defs>
+                <linearGradient id="dash_hb" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#2e4070"/><stop offset="100%" stopColor="#425B9A"/></linearGradient>
+                <linearGradient id="dash_hm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#76C0EC"/><stop offset="100%" stopColor="#55aee0"/></linearGradient>
+                <linearGradient id="dash_hf" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#425B9A"/><stop offset="100%" stopColor="#5470b8"/></linearGradient>
+              </defs>
+              <rect x="4" y="16" width="42" height="12" rx="4" fill="url(#dash_hb)"/>
+              <rect x="7" y="26" width="42" height="12" rx="4" fill="url(#dash_hm)"/>
+              <rect x="10" y="36" width="42" height="12" rx="4" fill="url(#dash_hf)"/>
+              <circle cx="18" cy="42" r="2.2" fill="#FF5F57"/>
+              <circle cx="24.5" cy="42" r="2.2" fill="#FEBC2E"/>
+              <circle cx="31" cy="42" r="2.2" fill="#28C840"/>
             </svg>
           </div>
-          <span className="font-medium tracking-wide text-sm text-white">Tabflow</span>
+          <span className="font-semibold tracking-wide text-base text-white">Tabflow</span>
         </div>
 
         <nav className="flex-1 space-y-1.5 px-2">
@@ -116,7 +138,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 relative overflow-hidden flex flex-col bg-transparent">
         {/* View Container */}
-        <div id="main-scroll-container" className="flex-1 overflow-y-auto px-12 pb-12 pt-12">
+        <div id="main-scroll-container" className="flex-1 overflow-y-auto px-10 pt-8 pb-5">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -135,22 +157,54 @@ export default function App() {
         </div>
       </main>
 
-      {/* Global Toast Notification */}
+      {/* Global Modern Professional Toast Notification (Strictly One Line) */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-[#110e20]/90 backdrop-blur-xl border border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.5)]"
+            exit={{ opacity: 0, y: 15, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 450, damping: 30 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] max-w-[92vw] sm:max-w-[540px] flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-[#0c111c]/95 backdrop-blur-xl border border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.06)]"
           >
-            {toastMessage.type === 'error' && <Info className="w-5 h-5 text-accent-pink" />}
-            {toastMessage.type === 'success' && <Check className="w-5 h-5 text-green-400" />}
-            {toastMessage.type === 'info' && <Info className="w-5 h-5 text-blue-400" />}
-            <div>
-              <p className="text-sm font-medium text-white">{toastMessage.title}</p>
-              {toastMessage.description && <p className="text-xs text-white/50 mt-0.5">{toastMessage.description}</p>}
+            {toastMessage.type === 'error' && (
+              <div className="w-5 h-5 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0 text-red-400">
+                {(toastMessage.title.toLowerCase().includes('delete') || 
+                  toastMessage.title.toLowerCase().includes('remove')) ? (
+                  <Trash2 className="w-3 h-3" />
+                ) : (
+                  <AlertCircle className="w-3 h-3" />
+                )}
+              </div>
+            )}
+            {toastMessage.type === 'success' && (
+              <div className="w-5 h-5 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 text-emerald-400">
+                <Check className="w-3 h-3" />
+              </div>
+            )}
+            {toastMessage.type === 'info' && (
+              <div className="w-5 h-5 rounded-full bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0 text-blue-400">
+                <Info className="w-3 h-3" />
+              </div>
+            )}
+            
+            <div className="flex items-center gap-1.5 min-w-0 text-xs whitespace-nowrap overflow-hidden">
+              <span className="font-semibold text-white tracking-tight shrink-0">{toastMessage.title}</span>
+              {toastMessage.description && (
+                <>
+                  <span className="text-white/25 shrink-0">•</span>
+                  <span className="text-white/60 truncate max-w-[320px]">{toastMessage.description}</span>
+                </>
+              )}
             </div>
+
+            <button 
+              onClick={() => setToastMessage(null)} 
+              className="w-5 h-5 rounded-full text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors shrink-0 ml-0.5"
+              title="Dismiss"
+            >
+              <X className="w-3 h-3" />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -218,19 +272,23 @@ function ChatView() {
 
       port.onMessage.addListener((msg: any) => {
         if (msg.type === 'CHUNK') {
-          receivedText += msg.text;
-          setMessages(prev => {
-            const copy = [...prev];
-            if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
-              copy[copy.length - 1] = { role: 'assistant', content: receivedText };
-            }
-            return copy;
-          });
+          const cleanChunk = sanitizeStreamChunk(msg.text || '');
+          if (cleanChunk) {
+            receivedText += cleanChunk;
+            setMessages(prev => {
+              const copy = [...prev];
+              if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
+                copy[copy.length - 1] = { role: 'assistant', content: receivedText };
+              }
+              return copy;
+            });
+          }
         } else if (msg.type === 'DONE') {
+          const finalClean = sanitizeStreamChunk(msg.fullText || receivedText);
           setMessages(prev => {
             const copy = [...prev];
             if (copy.length > 0 && copy[copy.length - 1].role === 'assistant') {
-              copy[copy.length - 1] = { role: 'assistant', content: msg.fullText };
+              copy[copy.length - 1] = { role: 'assistant', content: finalClean };
             }
             return copy;
           });
@@ -274,17 +332,17 @@ function ChatView() {
   ];
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col pb-4">
+    <div className="h-[calc(100vh-6rem)] flex flex-col pb-1">
       {/* Top Header */}
       <div className="mb-6 shrink-0 flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-semibold tracking-tight text-white mb-1.5">Workspace Chat</h2>
-          <p className="text-white/40 font-light text-sm">Converse with your currently open tabs and trigger actions.</p>
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-1.5">Workspace Chat</h2>
+          <p className="text-white/60 font-medium text-sm">Converse with your currently open tabs and trigger actions.</p>
         </div>
         {messages.length > 0 && (
           <button 
             onClick={handleClear}
-            className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-xs font-medium text-red-300 transition-all flex items-center gap-2 active:scale-95"
+            className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-xs font-medium text-red-600 transition-all flex items-center gap-2 active:scale-95"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Clear Chat
@@ -292,11 +350,11 @@ function ChatView() {
         )}
       </div>
 
-      {/* Main Chat Box */}
-      <div className="flex-1 flex flex-col min-h-0 bg-[#0c0a1a]/40 border border-white/[0.04] rounded-3xl p-6 shadow-inner backdrop-blur-md relative group">
+      {/* Main Chat Area - Seamless without outer box */}
+      <div className="flex-1 flex flex-col min-h-0 relative group">
         {/* Floating Scroll Arrows */}
         {messages.length > 0 && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <button 
               onClick={() => containerRef.current?.scrollBy({ top: -150, behavior: 'smooth' })}
               className="p-2 bg-[#0d0a1a]/90 hover:bg-[#1a1533]/90 hover:text-accent-blue border border-white/10 rounded-xl text-white/50 transition-all hover:scale-105 active:scale-95 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur-md cursor-pointer"
@@ -314,35 +372,35 @@ function ChatView() {
           </div>
         )}
 
-        <div ref={containerRef} className="flex-1 overflow-y-auto mb-5 pl-2 pr-14 space-y-6 scrollbar-hide">
+        <div ref={containerRef} className="flex-1 overflow-y-auto mb-3 pl-1 pr-8 space-y-6 scrollbar-hide">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col justify-center items-center max-w-lg mx-auto py-12">
+            <div className="h-full flex flex-col justify-center items-center w-full max-w-2xl mx-auto py-12">
               <div className="mb-4 p-3 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 text-blue-400 animate-pulse">
                 <MessageSquare className="w-5 h-5" />
               </div>
-              <h3 className="text-lg font-medium text-white mb-2">Ask your Workspace Assistant</h3>
-              <p className="text-center text-white/40 text-sm font-light leading-relaxed mb-8">
-                I can help you navigate, search the web, analyze your tabs, or manage your workspace. Try one of these prompts to get started:
+              <h3 className="text-xl font-semibold text-white mb-2 tracking-tight">Ask your Workspace Assistant</h3>
+              <p className="text-center text-white/40 text-sm font-normal leading-relaxed mb-8">
+                I can help you navigate, search the web, analyze your tabs, or manage your workspace.
               </p>
               
-              <div className="w-full space-y-3">
+              <div className="w-full max-w-lg space-y-3">
                 {suggestions.map((s, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleAsk(s.text)}
-                    className="w-full text-left p-4 bg-white/[0.02] hover:bg-white/[0.04] border border-white/[0.05] hover:border-blue-500/30 rounded-2xl transition-all group flex items-center justify-between"
+                    className="w-full text-left p-4 bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.08] hover:border-blue-500/40 rounded-2xl transition-all duration-200 group flex items-center justify-between cursor-pointer shadow-sm hover:shadow-md"
                   >
                     <div>
-                      <div className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">{s.text}</div>
-                      <div className="text-xs text-white/30 font-light mt-0.5">{s.desc}</div>
+                      <div className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors">{s.text}</div>
+                      <div className="text-xs text-white/50 font-normal mt-0.5">{s.desc}</div>
                     </div>
-                    <Send className="w-4 h-4 text-white/20 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
+                    <Send className="w-4 h-4 text-white/30 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
                   </button>
                 ))}
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 max-w-3xl mx-auto w-full">
               {messages.map((m, i) => (
                 <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {m.role === 'assistant' && (
@@ -379,18 +437,18 @@ function ChatView() {
         </div>
 
         {/* Input area */}
-        <div className="relative flex items-center gap-3 shrink-0">
-          <div className="relative flex-1">
+        <div className="relative flex items-center gap-3 shrink-0 pt-3 pb-3">
+          <div className="relative flex-1 max-w-3xl mx-auto w-full">
             <input 
               type="text" 
-              className="os-input w-full pr-14 pl-5 bg-[#07050f] border-white/10 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all rounded-2xl h-12 text-sm placeholder:text-white/20" 
+              className="os-input w-full pr-14 pl-5 bg-[#0a0f1d]/90 border border-white/12 focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all rounded-2xl h-14 text-sm text-white placeholder:text-white/35 backdrop-blur-xl shadow-2xl" 
               placeholder="Ask a question or request an action (e.g. 'open youtube and play a song')..." 
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAsk()}
             />
             <button 
-              className="absolute right-2 top-1.5 p-2 bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/20 hover:opacity-90 active:scale-95 transition-all text-white rounded-xl disabled:opacity-50 disabled:scale-100"
+              className="absolute right-2.5 top-2.5 p-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 shadow-md shadow-blue-500/20 active:scale-95 transition-all text-white rounded-xl disabled:opacity-40 disabled:scale-100 cursor-pointer"
               onClick={() => handleAsk()}
               disabled={isTyping || !input.trim()}
             >
@@ -411,41 +469,42 @@ function ChatView() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowConfirm(false)}
-              className="fixed inset-0 bg-black/60"
+              className="fixed inset-0 bg-black/75 backdrop-blur-md"
             />
             {/* Modal Content */}
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", duration: 0.3 }}
-              className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a] p-8 shadow-2xl shadow-black/80"
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="relative w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-5 shadow-2xl shadow-black/90 text-center"
             >
-              <div className="flex flex-col items-center text-center">
-                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-400 border border-red-500/20">
-                  <Trash2 className="h-5 w-5" />
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">Clear Chat History</h3>
-                <p className="text-white/40 text-sm font-light leading-relaxed mb-8">
-                  Are you sure you want to clear all your messages? This action cannot be undone.
-                </p>
-                <div className="flex w-full gap-3">
-                  <button 
-                    onClick={() => setShowConfirm(false)}
-                    className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-white/80 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setMessages([]);
-                      setShowConfirm(false);
-                    }}
-                    className="flex-1 px-4 py-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-xl text-sm font-medium text-red-200 transition-colors"
-                  >
-                    Clear
-                  </button>
-                </div>
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center mx-auto mb-3 text-red-400">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h3 className="text-sm font-semibold text-white tracking-tight mb-1">Clear Chat History?</h3>
+              <p className="text-xs text-white/50 mb-3.5 leading-normal">
+                Permanently deletes your entire conversation history.
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <button 
+                  type="button"
+                  onClick={() => setShowConfirm(false)}
+                  className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 active:bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setMessages([]);
+                    setShowConfirm(false);
+                  }}
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 active:scale-[0.98] rounded-lg text-xs font-semibold text-white shadow-md shadow-red-500/20 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Clear All</span>
+                </button>
               </div>
             </motion.div>
           </div>
@@ -459,40 +518,88 @@ function ChatView() {
         <AnimatePresence>
         {pendingCommands.length > 0 && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a] p-8 shadow-2xl shadow-black/80 max-h-[80vh] flex flex-col">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/20">
-                  <Command className="w-6 h-6 text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white">Confirm Actions</h3>
-                  <p className="text-sm text-blue-400/80 mt-1">The assistant wants to execute the following commands:</p>
-                </div>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto pr-2 space-y-3 mb-6 scrollbar-hide">
-                {pendingCommands.map((cmd, idx) => (
-                  <div key={idx} className="bg-white/5 border border-white/10 rounded-xl p-4">
-                    <div className="text-xs font-mono text-blue-300 mb-2">{cmd.type}</div>
-                    <div className="space-y-1">
-                      {Object.entries(cmd.args).map(([k, v]) => (
-                        <div key={k} className="text-sm flex items-start gap-2">
-                          <span className="text-white/40 shrink-0">{k}:</span>
-                          <span className="text-white font-medium break-all">{v as string}</span>
-                        </div>
-                      ))}
-                    </div>
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setPendingCommands([])}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 10 }} 
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="relative w-full max-w-[400px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-5 shadow-2xl shadow-black/90 flex flex-col"
+            >
+              <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0 border border-blue-500/25">
+                    <Command className="w-4 h-4 text-blue-400" />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="text-sm font-semibold text-white tracking-tight leading-tight">Confirm Action{pendingCommands.length > 1 ? 's' : ''}</h3>
+                    <p className="text-[11px] text-white/50 leading-tight mt-0.5">Assistant requested permission to run</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setPendingCommands([])}
+                  className="w-7 h-7 rounded-lg text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors"
+                  title="Close"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
               
-              <div className="flex gap-3 shrink-0">
-                <button onClick={() => setPendingCommands([])} className="flex-1 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-semibold transition-colors">Reject</button>
-                <button onClick={() => {
-                  chrome.runtime.sendMessage({ type: 'EXECUTE_CONFIRMED_COMMANDS', commands: pendingCommands });
-                  setPendingCommands([]);
-                }} className="flex-1 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-lg shadow-blue-500/20 flex justify-center items-center">
+              <div className="flex-1 overflow-y-auto space-y-2 mb-4 scrollbar-hide max-h-[48vh] pr-0.5">
+                {pendingCommands.map((cmd, idx) => {
+                  const label = cmd.type === 'OPEN_TAB' ? 'Open Tab'
+                    : cmd.type === 'CLOSE_TAB' || cmd.type === 'DELETE_TAB' ? 'Close Tab'
+                    : cmd.type === 'MOVE_TAB' ? 'Move Tab'
+                    : cmd.type === 'COPY_TAB' ? 'Duplicate Tab'
+                    : cmd.type === 'ADD_TAB' ? 'Save Tab'
+                    : cmd.type === 'DELETE_FOLDER' ? 'Delete Workspace'
+                    : cmd.type === 'RENAME_FOLDER' ? 'Rename Workspace'
+                    : cmd.type === 'RESTORE_FOLDER' ? 'Open Workspace'
+                    : cmd.type === 'LOCK_FOLDER' ? 'Lock Workspace'
+                    : cmd.type === 'SCHEDULE_FOLDER' ? 'Schedule Workspace'
+                    : cmd.type.replace(/_/g, ' ');
+
+                  return (
+                    <div key={idx} className="bg-white/[0.03] hover:bg-white/[0.05] border border-white/[0.08] rounded-xl p-3 transition-colors">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono tracking-wider bg-blue-500/15 text-blue-300 border border-blue-500/25 uppercase">
+                          {label}
+                        </span>
+                        <span className="text-[10px] text-white/30 font-mono">#{idx + 1}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {Object.entries(cmd.args).map(([k, v]) => (
+                          <div key={k} className="flex items-start gap-2 bg-black/30 rounded-lg px-2.5 py-1.5 border border-white/[0.04]">
+                            <span className="text-white/40 text-[10px] uppercase font-semibold shrink-0 pt-0.5">{k}:</span>
+                            <span className="text-xs text-white/90 font-mono break-all selection:bg-blue-500/30">{v as string}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className="flex items-center justify-end gap-2 shrink-0 pt-2 border-t border-white/[0.08]">
+                <button 
+                  onClick={() => setPendingCommands([])} 
+                  className="px-3.5 py-1.5 hover:bg-white/5 text-white/70 hover:text-white rounded-lg text-xs font-medium transition-all"
+                >
+                  Reject
+                </button>
+                <button 
+                  onClick={() => {
+                    chrome.runtime.sendMessage({ type: 'EXECUTE_CONFIRMED_COMMANDS', commands: pendingCommands });
+                    setPendingCommands([]);
+                  }} 
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 flex items-center gap-1.5"
+                >
                   Approve & Execute
                 </button>
               </div>
@@ -546,7 +653,7 @@ function SettingsView({ showToast }: { showToast: (title: string, description?: 
     await setSetting('aiProvider', provider);
     await setSetting(`apiKey_${provider}`, apiKey);
     await setSetting(`model_${provider}`, model);
-    showToast('Configuration Saved', 'Successfully saved API keys and settings.', 'success');
+    showToast('Preferences Saved', 'AI configuration and local settings have been updated.', 'success');
   };
 
   return (
@@ -641,12 +748,12 @@ function SettingsView({ showToast }: { showToast: (title: string, description?: 
         <div>
           <h3 className="text-sm uppercase tracking-widest text-white/50 font-medium mb-3">Custom Model Name</h3>
           <p className="text-sm text-white/40 font-light mb-4">
-            Leave blank to use defaults (gemini-2.5-flash, gpt-4o-mini).
+            Leave blank to use defaults (gemini-2.0-flash, gpt-4o-mini).
           </p>
           <input 
             type="text" 
             className="os-input bg-[#0a0a0a]" 
-            placeholder="e.g. gemini-2.5-pro, anthropic/claude-3-sonnet" 
+            placeholder="e.g. gemini-2.0-flash, anthropic/claude-3.5-sonnet" 
             value={model}
             onChange={e => setModel(e.target.value)}
           />
@@ -683,13 +790,12 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
   const [selectedFolderIds, setSelectedFolderIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
-  const [tabSearchQuery, setTabSearchQuery] = useState('');
-  const [tabLimit, setTabLimit] = useState(30);
-
-  useEffect(() => {
-    setTabSearchQuery('');
-    setTabLimit(30);
-  }, [expandedFolder]);
+  const [folderTabSearches, setFolderTabSearches] = useState<Record<string, string>>({});
+  const [tabsPerPage, setTabsPerPage] = useState(() => {
+    const saved = localStorage.getItem('tabflow_tabs_per_page');
+    return saved ? Number(saved) : 10;
+  });
+  const [folderTabPages, setFolderTabPages] = useState<Record<string, number>>({});
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -761,7 +867,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
         if (isCorrect) {
           setIsRecoveryMode('new_password');
           setUnlockError('');
-          showToast('Recovery Verified', 'Word matches. Please set your new password.', 'success');
+          showToast('Recovery Verified', 'Security verification successful. Please set your new password.', 'success');
         } else {
           setUnlockError('Incorrect recovery word.');
         }
@@ -785,7 +891,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
             loadFolders();
             setShowUnlockModal(null);
             setIsRecoveryMode(null);
-            showToast('Password Reset', 'Your new folder password has been configured and the folder is unlocked.', 'success');
+            showToast('Password Reset', 'Folder password updated and unlocked successfully.', 'success');
           }
         });
       });
@@ -923,7 +1029,17 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       if (selectedTabs.length === 0) throw new Error("No tabs selected to share.");
       
       const tabsList = selectedTabs.map((t: any, i: number) => `${i + 1}. ${t.title} - ${t.url}`).join('\n');
-      const prompt = `You are a helpful assistant. I have a workspace folder named '${showShareModal.folderName}' containing the following tabs:\n\n${tabsList}\n\nPlease generate a beautifully formatted Markdown document that summarizes this workspace. Provide a very brief, 1-2 sentence guess of what each tab is about based on its title and URL, and format the output beautifully so I can share it with my colleagues.`;
+      const prompt = `You are a helpful assistant. I have a workspace folder named '${showShareModal.folderName}' containing the following tabs:\n\n${tabsList}\n\nPlease generate a beautifully formatted Markdown document that summarizes this workspace.
+
+Create a clear summary table with columns:
+| Title | URL | Description |
+
+For each tab:
+- Title: The tab title as a link: [Title](URL)
+- URL: The domain or link
+- Description: A 1-sentence guess of what this website/tool is for.
+
+Ensure every cell is filled out and no columns or cells are left blank. Format cleanly with Markdown headings and bullet points where helpful.`;
       
       const markdown = await import('../ai/llm').then(m => m.callLLM(prompt));
       setShareViewMode('preview');
@@ -1013,21 +1129,24 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       loadFolders();
       setShowAddTabModal(null);
       if (response && response.error) {
-        showToast('Error', response.error, 'error');
+        showToast('Action Failed', response.error, 'error');
       } else if (response && response.validCount === 0) {
-        showToast('No Tabs Open', 'No tabs open. Open some tabs to add them!', 'error');
+        showToast('No Active Tabs', 'No open tabs were found in this browser window.', 'info');
       } else if (response && response.addedCount === 0) {
-        showToast('No New Tabs Added', 'All open tabs already exist in this folder.', 'error');
+        showToast('Tabs Already Saved', 'All open tabs already exist in this workspace folder.', 'info');
       } else if (response) {
-        showToast(`${response.addedCount} Tabs Added`, 'Successfully saved new open tabs.', 'success');
+        const count = typeof response.addedCount === 'number' ? response.addedCount : 1;
+        showToast(`${count} Tab${count === 1 ? '' : 's'} Saved`, `Successfully saved ${count} tab${count === 1 ? '' : 's'} to this workspace.`, 'success');
       }
     });
   };
 
   const openTimer = (folder: any, tabUrl?: string) => {
-    const target = tabUrl ? folder.tabs.find((t: any) => t.url === tabUrl) : folder;
-    setOpenTimerDates(target?.scheduledOpenTimes ? target.scheduledOpenTimes.map((t: number) => new Date(t)) : []);
-    setCloseTimerDates(target?.scheduledCloseTimes ? target.scheduledCloseTimes.map((t: number) => new Date(t)) : []);
+    const target = tabUrl ? folder.tabs?.find((t: any) => t.url === tabUrl) : folder;
+    const now = Date.now();
+    setOpenTimerDates(target?.scheduledOpenTimes ? target.scheduledOpenTimes.filter((t: number) => t > now).map((t: number) => new Date(t)) : []);
+    setCloseTimerDates(target?.scheduledCloseTimes ? target.scheduledCloseTimes.filter((t: number) => t > now).map((t: number) => new Date(t)) : []);
+    setTimerAction('close');
     setShowTimerModal({ sessionId: folder.id, type: tabUrl ? 'tab' : 'folder', url: tabUrl });
   };
 
@@ -1038,66 +1157,51 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
     let closeTimes: number[] = [];
 
     if (!remove) {
-      openTimes = openTimerDates.map(d => d.getTime());
-      closeTimes = closeTimerDates.map(d => d.getTime());
+      const now = Date.now();
+      openTimes = openTimerDates.map(d => d.getTime()).filter(t => t > now);
+      closeTimes = closeTimerDates.map(d => d.getTime()).filter(t => t > now);
       
-      if (openTimes.some(t => t <= Date.now()) || closeTimes.some(t => t <= Date.now())) {
-        showToast('Invalid Time', 'Please select future dates and times.', 'error');
+      const hadPastOpen = openTimerDates.some(d => d.getTime() <= now);
+      const hadPastClose = closeTimerDates.some(d => d.getTime() <= now);
+      if (hadPastOpen || hadPastClose) {
+        showToast('Past Times Excluded', 'Times that already passed were excluded. Only future times are scheduled.', 'info');
+      }
+
+      if (openTimes.length === 0 && closeTimes.length === 0 && (openTimerDates.length > 0 || closeTimerDates.length > 0)) {
+        showToast('Invalid Time', 'All selected times are in the past. Please select a future date and time.', 'error');
         return;
       }
     }
 
-    if (showTimerModal.type === 'folder') {
+    const payload = {
+      sessionId: showTimerModal.sessionId,
+      ...(showTimerModal.url ? { url: showTimerModal.url } : {}),
+    };
+    const messageType = showTimerModal.type === 'folder' ? 'SET_FOLDER_TIMER' : 'SET_TAB_TIMER';
+
+    chrome.runtime.sendMessage({
+      type: messageType,
+      ...payload,
+      action: 'open',
+      times: openTimes
+    }, () => {
       chrome.runtime.sendMessage({
-        type: 'SET_FOLDER_TIMER',
-        sessionId: showTimerModal.sessionId,
-        action: 'open',
-        times: openTimes
+        type: messageType,
+        ...payload,
+        action: 'close',
+        times: closeTimes
       }, () => {
-        chrome.runtime.sendMessage({
-          type: 'SET_FOLDER_TIMER',
-          sessionId: showTimerModal.sessionId,
-          action: 'close',
-          times: closeTimes
-        }, () => {
-          loadFolders();
-          setShowTimerModal(null);
-          setOpenTimerDates([]);
-          setCloseTimerDates([]);
-          if (remove) {
-            showToast('Schedule Removed', 'Folder auto-open/close schedules have been cleared.', 'info');
-          } else {
-            showToast('Schedule Saved', 'Successfully saved schedules for this folder.', 'success');
-          }
-        });
+        loadFolders();
+        setShowTimerModal(null);
+        setOpenTimerDates([]);
+        setCloseTimerDates([]);
+        if (remove) {
+          showToast('Schedule Removed', 'Folder auto-open/close schedules have been cleared.', 'info');
+        } else {
+          showToast('Schedule Saved', `Successfully saved schedule (${openTimes.length} open, ${closeTimes.length} close).`, 'success');
+        }
       });
-    } else if (showTimerModal.type === 'tab' && showTimerModal.url) {
-      chrome.runtime.sendMessage({
-        type: 'SET_TAB_TIMER',
-        sessionId: showTimerModal.sessionId,
-        url: showTimerModal.url,
-        action: 'open',
-        times: openTimes
-      }, () => {
-        chrome.runtime.sendMessage({
-          type: 'SET_TAB_TIMER',
-          sessionId: showTimerModal.sessionId,
-          url: showTimerModal.url,
-          action: 'close',
-          times: closeTimes
-        }, () => {
-          loadFolders();
-          setShowTimerModal(null);
-          setOpenTimerDates([]);
-          setCloseTimerDates([]);
-          if (remove) {
-            showToast('Schedule Removed', 'Tab auto-open/close schedules have been cleared.', 'info');
-          } else {
-            showToast('Schedule Saved', 'Successfully saved schedules for this tab.', 'success');
-          }
-        });
-      });
-    }
+    });
   };
 
   const confirmDelete = () => {
@@ -1110,7 +1214,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
         }
         loadFolders();
         setShowDeleteModal(null);
-        showToast('Tab Removed', 'Successfully removed tab from folder.', 'info');
+        showToast('Tab Removed', 'The tab has been removed from this workspace folder.', 'error');
       });
     } else {
       chrome.runtime.sendMessage({ type: 'DELETE_FOLDER', sessionId: showDeleteModal.sessionId }, (response) => {
@@ -1120,7 +1224,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
         }
         loadFolders();
         setShowDeleteModal(null);
-        showToast('Folder Deleted', 'Successfully deleted the folder.', 'info');
+        showToast('Folder Deleted', 'The workspace folder and its contents have been permanently deleted.', 'error');
       });
     }
   };
@@ -1142,8 +1246,8 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
     if (!hasError) {
       showToast(
         'Folders Deleted',
-        `Successfully deleted ${ids.length} folder${ids.length > 1 ? 's' : ''}.`,
-        'info'
+        `${ids.length} workspace folder${ids.length > 1 ? 's have' : ' has'} been permanently deleted.`,
+        'error'
       );
     }
     setSelectedFolderIds(new Set());
@@ -1153,26 +1257,31 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
 
   const openFolderTabs = async (folder: any, target: 'current' | 'new' | 'incognito' = 'current') => {
     if (folder.isLocked) {
-      showToast('Folder Locked', 'This folder is locked. Please unlock it first.', 'error');
+      showToast('Folder Protected', 'This folder is password locked. Please unlock it to open tabs.', 'error');
       return;
     }
     
     if (target === 'incognito') {
-      const allowed = await chrome.extension.isAllowedIncognitoAccess();
+      const allowed = await checkIncognitoAllowed();
       if (!allowed) {
-        showToast('Incognito Access Required', 'Please enable "Allow in Incognito" in your Chrome extension settings to allow Tabflow to manage incognito tabs.', 'error');
+        showToast('Incognito Access Required', 'Please enable "Allow in Incognito" in chrome://extensions for Tabflow to open private tabs.', 'error');
+        return;
       }
     }
     
     chrome.runtime.sendMessage({ type: 'OPEN_FOLDER_TABS', sessionId: folder.id, target }, (response) => {
       if (response && response.success) {
         if (response.openedCount > 0) {
-          showToast('Tabs Opened', `Opened ${response.openedCount} tabs.`, 'success');
+          showToast(
+            target === 'incognito' ? 'Incognito Tabs Opened' : target === 'new' ? 'New Window Created' : 'Tabs Opened',
+            `Opened ${response.openedCount} tab${response.openedCount > 1 ? 's' : ''} in ${target === 'incognito' ? 'incognito' : target === 'new' ? 'a new window' : 'your browser'}.`,
+            'success'
+          );
         } else {
-          showToast('No New Tabs', 'All tabs in this folder are already open in this window.', 'info');
+          showToast('Tabs Already Active', 'All tabs in this folder are already active in your browser window.', 'info');
         }
       } else {
-        showToast('Error', 'Failed to open tabs.', 'error');
+        showToast('Action Failed', response?.error || 'Failed to open workspace tabs. Please try again.', 'error');
       }
     });
   };
@@ -1187,51 +1296,69 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
 
   const closeFolderTabs = (folder: any) => {
     if (folder.isLocked) {
-      showToast('Folder Locked', 'This folder is locked. Please unlock it first.', 'error');
+      showToast('Folder Protected', 'This folder is password locked. Please unlock it to perform this action.', 'error');
       return;
     }
     chrome.runtime.sendMessage({ type: 'CLOSE_FOLDER_TABS', sessionId: folder.id }, (response) => {
       if (response && response.success) {
-        if (response.allowedIncognito === false) {
-          showToast('Tabs Closed', `Closed normal tabs. Enable "Allow in Incognito" in extension settings to allow closing incognito tabs.`, 'info');
+        if (response.closedCount === 0) {
+          showToast('No Active Tabs', `None of the tabs from "${folder.name}" are currently open in your browser.`, 'info');
+        } else if (response.allowedIncognito === false) {
+          showToast('Tabs Closed', `Closed ${response.closedCount} open tab${response.closedCount > 1 ? 's' : ''}. Enable "Allow in Incognito" to close private tabs.`, 'info');
         } else {
-          showToast('Tabs Closed', `Closed all open tabs from "${folder.name}".`, 'info');
+          showToast('Tabs Closed', `Closed ${response.closedCount} open tab${response.closedCount > 1 ? 's' : ''} from "${folder.name}".`, 'info');
         }
       } else {
-        showToast('Error', 'Failed to close tabs.', 'error');
+        showToast('Action Failed', response?.error || 'Could not close workspace tabs.', 'error');
       }
     });
   };
 
-  const openTab = async (url: string, mode: 'current' | 'new' | 'incognito' = 'current') => {
+  const openTab = async (url: string, mode: 'current' | 'new' | 'incognito' = 'current', tabTitle?: string) => {
     url = sanitizeUrl(url);
     if (!isValidUrl(url)) {
-      showToast('Invalid URL', 'This URL is not allowed for security reasons.', 'error');
+      showToast('Restricted URL', 'This system URL cannot be opened for browser security reasons.', 'error');
       return;
     }
     const openTabs = await chrome.tabs.query({});
-    const existingTab = openTabs.find(t => t.url === url);
+    const existingTab = openTabs.find(t => t.url && isSameUrl(t.url, url));
     
     if (existingTab && existingTab.id && existingTab.windowId) {
-      await chrome.windows.update(existingTab.windowId, { focused: true });
-      await chrome.tabs.update(existingTab.id, { active: true });
-      showToast('Tab Focused', 'Focused the existing open tab.', 'info');
-      return;
+      try {
+        await chrome.windows.update(existingTab.windowId, { focused: true });
+        await chrome.tabs.update(existingTab.id, { active: true });
+        showToast('Tab Focused', 'Switched focus to the already active tab.', 'info');
+        return;
+      } catch {
+        // Continue to re-open if tab handle was stale
+      }
     }
 
     if (mode === 'current') {
-      chrome.tabs.create({ url, active: false });
-      showToast('Tab Opened', 'Opened tab in current window.', 'success');
+      try {
+        chrome.tabs.create({ url, active: true, ...(tabTitle ? { title: tabTitle } : {}) } as any);
+      } catch {
+        window.open(url, '_blank');
+      }
+      showToast('Tab Opened', 'Opened tab in your browser.', 'success');
     } else if (mode === 'new') {
-      chrome.windows.create({ url, focused: true });
-      showToast('Window Created', 'Opened tab in a new window.', 'success');
+      try {
+        chrome.windows.create({ url, focused: true });
+      } catch {
+        window.open(url, '_blank');
+      }
+      showToast('Window Created', 'Opened tab in a new browser window.', 'success');
     } else if (mode === 'incognito') {
-      chrome.extension.isAllowedIncognitoAccess((isAllowed) => {
+      checkIncognitoAllowed().then((isAllowed) => {
         if (!isAllowed) {
-          showToast('Permission Required', 'Please enable "Allow in Incognito" in extension details.', 'error');
+          showToast('Incognito Access Required', 'Please enable "Allow in Incognito" in chrome://extensions for Tabflow.', 'error');
         } else {
-          chrome.windows.create({ url, incognito: true, focused: true });
-          showToast('Incognito Window Created', 'Opened tab in an incognito window.', 'success');
+          try {
+            chrome.windows.create({ url, incognito: true, focused: true });
+            showToast('Incognito Window Created', 'Opened tab in a private incognito window.', 'success');
+          } catch {
+            showToast('Action Failed', 'Could not open private window.', 'error');
+          }
         }
       });
     }
@@ -1239,13 +1366,14 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
 
   const closeTab = (url: string) => {
     chrome.tabs.query({}, (openTabs) => {
-      const tabToClose = openTabs.find(t => t.url === url);
-      if (tabToClose?.id) {
-        chrome.tabs.remove(tabToClose.id, () => {
-          showToast('Tab Closed', 'Successfully closed the tab.', 'info');
+      const matchingTabs = openTabs.filter(t => t.url && isSameUrl(t.url, url));
+      if (matchingTabs.length > 0) {
+        const ids = matchingTabs.map(t => t.id!).filter(Boolean);
+        chrome.tabs.remove(ids, () => {
+          showToast('Tab Closed', `Closed ${ids.length} active tab${ids.length > 1 ? 's' : ''}.`, 'info');
         });
       } else {
-        showToast('Tab Not Open', 'Tab is not currently open in any window.', 'info');
+        showToast('Tab Inactive', 'This tab is not currently open in any browser window.', 'info');
       }
     });
   };
@@ -1333,27 +1461,42 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
     });
   };
 
+  const hasAnyPinned = folders.some(f => f.isPinned);
+  const trimmedSearch = searchQuery.trim().toLowerCase();
   const filteredFolders = folders
-    .filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(f => {
+      if (!trimmedSearch) return true;
+      const matchName = f.name.toLowerCase().includes(trimmedSearch);
+      const matchTabs = (f.tabs || []).some((tab: any) =>
+        (tab.title || '').toLowerCase().includes(trimmedSearch) ||
+        (tab.url || '').toLowerCase().includes(trimmedSearch)
+      );
+      return matchName || matchTabs;
+    })
     .sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
       const result = a.name.localeCompare(b.name);
       return sortDesc ? -result : result;
     });
-  const pinnedFolders = filteredFolders.filter(f => f.isPinned);
-  const unpinnedFolders = filteredFolders.filter(f => !f.isPinned);
 
-  const totalPages = Math.ceil(unpinnedFolders.length / foldersPerPage);
+  const totalFolders = filteredFolders.length;
+  const totalPages = Math.ceil(totalFolders / foldersPerPage);
   const activePage = Math.max(1, Math.min(folderPage, totalPages || 1));
-  const paginatedUnpinnedFolders = unpinnedFolders.slice((activePage - 1) * foldersPerPage, activePage * foldersPerPage);
+  const paginatedFolders = filteredFolders.slice((activePage - 1) * foldersPerPage, activePage * foldersPerPage);
+
+  const pinnedOnPage = paginatedFolders.filter(f => f.isPinned);
+  const unpinnedOnPage = paginatedFolders.filter(f => !f.isPinned);
 
   const renderFolderList = (list: any[]) => {
     if (list.length === 0) return null;
     return list.map(folder => {
-      // Filter tabs in folder based on local tab search query
+      // Filter tabs in folder based on local tab search query or global tab search
+      const localQuery = (folderTabSearches[folder.id] || '').trim().toLowerCase();
+      const activeTabFilter = localQuery || (trimmedSearch && !folder.name.toLowerCase().includes(trimmedSearch) ? trimmedSearch : '');
       const matchingTabs = [...(folder.tabs || [])].filter((tab: any) => {
-        if (!tabSearchQuery) return true;
-        const q = tabSearchQuery.toLowerCase();
-        return (tab.title || '').toLowerCase().includes(q) || (tab.url || '').toLowerCase().includes(q);
+        if (!activeTabFilter) return true;
+        return (tab.title || '').toLowerCase().includes(activeTabFilter) || (tab.url || '').toLowerCase().includes(activeTabFilter);
       });
 
       // Sort matching tabs (starred first)
@@ -1363,11 +1506,14 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
         return 0;
       });
 
-      // Paginate/limit results to keep DOM responsive
-      const visibleTabs = sortedTabs.slice(0, tabLimit);
+      // Paginate tabs inside folder
+      const currentTabPage = folderTabPages[folder.id] || 1;
+      const totalTabPages = Math.ceil(matchingTabs.length / tabsPerPage);
+      const activeTabPage = Math.max(1, Math.min(currentTabPage, totalTabPages || 1));
+      const visibleTabs = sortedTabs.slice((activeTabPage - 1) * tabsPerPage, activeTabPage * tabsPerPage);
 
       return (
-        <div key={folder.id} className="border border-white/[0.08] bg-white/[0.02] rounded-2xl p-5 hover:border-white/[0.12] transition-all mb-4">
+        <div key={folder.id} className="border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.04] rounded-xl px-4 py-2.5 hover:border-white/[0.15] transition-all mb-2.5 shadow-sm">
           <div 
             className="flex items-center justify-between cursor-pointer" 
             onClick={() => { 
@@ -1384,8 +1530,8 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
               }
             }}
           >
-            <div className="flex flex-col gap-1.5 flex-1 min-w-0 mr-4">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-1 flex-1 min-w-0 mr-3">
+              <div className="flex items-center gap-2.5">
                 {isSelectMode && (
                   <div 
                     className="mr-1 flex-shrink-0"
@@ -1400,16 +1546,16 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                       setSelectedFolderIds(newSelected);
                     }}
                   >
-                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedFolderIds.has(folder.id) ? 'bg-blue-500 border-blue-500' : 'border-white/20 bg-black/20'}`}>
-                      {selectedFolderIds.has(folder.id) && <Check className="w-3.5 h-3.5 text-white" />}
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedFolderIds.has(folder.id) ? 'bg-blue-500 border-blue-500' : 'border-white/20 bg-black/20'}`}>
+                      {selectedFolderIds.has(folder.id) && <Check className="w-3 h-3 text-white" />}
                     </div>
                   </div>
                 )}
-                <Folder className="w-5 h-5 text-accent-blue shrink-0" />
+                <Folder className="w-4 h-4 text-accent-blue shrink-0" />
                 {editingFolder?.id === folder.id ? (
                   <input
                     autoFocus
-                    className="bg-transparent border-b border-accent-purple font-medium text-white outline-none"
+                    className="bg-transparent border-b border-accent-purple font-medium text-white outline-none text-sm"
                     value={editingFolder?.name || ''}
                     onChange={(e) => editingFolder && setEditingFolder({ ...editingFolder, name: e.target.value })}
                     onBlur={submitRenameFolder}
@@ -1417,21 +1563,26 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
-                  <span className="font-medium text-white truncate min-w-0 text-sm md:text-base">{folder.name}</span>
+                  <span className="font-medium text-white truncate min-w-0 text-sm">{folder.name}</span>
                 )}
-                <span className="text-xs text-white/30 bg-white/5 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">{folder.tabs?.length} tabs</span>
+                <span className="text-[11px] text-white/40 bg-white/5 px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">{folder.tabs?.length} tabs</span>
+                {trimmedSearch && !folder.name.toLowerCase().includes(trimmedSearch) && (
+                  <span className="text-[10px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0">
+                    Matches tab
+                  </span>
+                )}
               </div>
               
               {((folder.scheduledOpenTimes && folder.scheduledOpenTimes.length > 0) || (folder.scheduledCloseTimes && folder.scheduledCloseTimes.length > 0)) && (
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap mt-0.5">
                   {folder.scheduledOpenTimes && folder.scheduledOpenTimes.length > 0 && (
-                    <span className="text-[10px] text-green-400 bg-green-400/10 border border-green-400/20 px-2.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1.5">
+                    <span className="text-[10px] text-green-400 bg-green-400/10 border border-green-400/20 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1.5">
                       <Clock className="w-2.5 h-2.5 animate-[spin_4s_linear_infinite]" />
                       Opens {folder.scheduledOpenTimes.length > 1 ? `on ${folder.scheduledOpenTimes.length} dates` : `${new Date(folder.scheduledOpenTimes[0]).toLocaleDateString()} ${new Date(folder.scheduledOpenTimes[0]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
                     </span>
                   )}
                   {folder.scheduledCloseTimes && folder.scheduledCloseTimes.length > 0 && (
-                    <span className="text-[10px] text-red-400 bg-red-400/10 border border-red-400/20 px-2.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1.5">
+                    <span className="text-[10px] text-red-400 bg-red-400/10 border border-red-400/20 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1.5">
                       <Clock className="w-2.5 h-2.5 animate-[spin_4s_linear_infinite]" />
                       Closes {folder.scheduledCloseTimes.length > 1 ? `on ${folder.scheduledCloseTimes.length} dates` : `${new Date(folder.scheduledCloseTimes[0]).toLocaleDateString()} ${new Date(folder.scheduledCloseTimes[0]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
                     </span>
@@ -1441,18 +1592,18 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
             </div>
 
             {!isSelectMode && (
-              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                <Tooltip content={folder.isPinned ? "Unpin Folder" : "Pin Folder"}><button onClick={(e) => { e.stopPropagation(); togglePinFolder(folder.id); }} className={`p-2 hover:bg-white/10 rounded-lg transition-colors ${folder.isPinned ? 'text-yellow-400' : 'text-white/40 hover:text-white'}`}>
-                  <Pin className={`w-4 h-4 ${folder.isPinned ? 'fill-current' : ''}`} />
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <Tooltip content={folder.isPinned ? "Unpin Folder" : "Pin Folder"}><button onClick={(e) => { e.stopPropagation(); togglePinFolder(folder.id); }} className={`p-1.5 hover:bg-white/10 rounded-lg transition-colors ${folder.isPinned ? 'text-yellow-400' : 'text-white/40 hover:text-white'}`}>
+                  <Pin className={`w-3.5 h-3.5 ${folder.isPinned ? 'fill-current' : ''}`} />
                 </button></Tooltip>
                 
                 {folder.isLocked ? (
                   <>
-                    <Tooltip content="Unlock Folder"><button onClick={(e) => { e.stopPropagation(); setShowUnlockModal(folder); setUnlockPassword(''); setRecoveryWordInput(''); setUnlockError(''); setIsRecoveryMode(null); setShowUnlockPassword(false); setShowRecoveryNewPassword(false); }} className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-red-400 transition-colors">
-                      <Lock className="w-4 h-4 text-red-400" />
+                    <Tooltip content="Unlock Folder"><button onClick={(e) => { e.stopPropagation(); setShowUnlockModal(folder); setUnlockPassword(''); setRecoveryWordInput(''); setUnlockError(''); setIsRecoveryMode(null); setShowUnlockPassword(false); setShowRecoveryNewPassword(false); }} className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-red-400 transition-colors">
+                      <Lock className="w-3.5 h-3.5 text-red-400" />
                     </button></Tooltip>
-                    <Tooltip content="Delete Folder"><button onClick={(e) => { e.stopPropagation(); setShowDeleteModal({sessionId: folder.id}); }} className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-orange-400 transition-colors">
-                      <Trash2 className="w-4 h-4" />
+                    <Tooltip content="Delete Folder"><button onClick={(e) => { e.stopPropagation(); setShowDeleteModal({sessionId: folder.id}); }} className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-red-400 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button></Tooltip>
                   </>
                 ) : (
@@ -1461,68 +1612,68 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                       <Tooltip content={folder.tabs && folder.tabs.length > 0 ? "Lock Folder Now" : "No tabs to lock"}><button 
                         disabled={!folder.tabs || folder.tabs.length === 0}
                         onClick={(e) => { e.stopPropagation(); lockFolder(folder.id); }} 
-                        className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-green-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                        className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-green-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                       >
-                        <Unlock className="w-4 h-4 text-green-400" />
+                        <Unlock className="w-3.5 h-3.5 text-green-400" />
                       </button></Tooltip>
                     )}
                     <Tooltip content={!folder.tabs || folder.tabs.length === 0 ? "No tabs to lock" : folder.password ? "Change Password" : "Setup Password"}><button 
-                      disabled={!folder.tabs || folder.tabs.length === 0}
+                      disabled={!folder.tabs || folder.tabs.length === 0} 
                       onClick={(e) => { e.stopPropagation(); setShowLockSettingsModal(folder); setLockPassword(''); setLockRecoveryWord(''); setAutoLock(folder.autoLockEnabled || false); setShowLockPassword(false); }} 
-                      className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-blue-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-blue-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
-                      <Key className="w-4 h-4" /> 
+                      <Key className="w-3.5 h-3.5" /> 
                     </button></Tooltip>
 
-                    <Tooltip content="Rename Folder"><button onClick={(e) => { e.stopPropagation(); setEditingFolder({ id: folder.id, name: folder.name }); }} className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors">
-                      <Pencil className="w-4 h-4" />
+                    <Tooltip content="Rename Folder"><button onClick={(e) => { e.stopPropagation(); setEditingFolder({ id: folder.id, name: folder.name }); }} className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-white transition-colors">
+                      <Pencil className="w-3.5 h-3.5" />
                     </button></Tooltip>
                     <Tooltip content={folder.tabs && folder.tabs.length > 0 ? "Share Workspace" : "No tabs to share"}><button 
                       disabled={!folder.tabs || folder.tabs.length === 0} 
                       onClick={(e) => { e.stopPropagation(); openShareModal(folder); }} 
-                      className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-blue-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-blue-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
-                      <Share2 className="w-4 h-4" />
+                      <Share2 className="w-3.5 h-3.5" />
                     </button></Tooltip>
                     
                     <Tooltip content={folder.tabs && folder.tabs.length > 0 ? "Open All Tabs" : "No tabs to open"}><button 
                       disabled={!folder.tabs || folder.tabs.length === 0} 
                       onClick={(e) => { e.stopPropagation(); openFolderTabs(folder, 'current'); }} 
-                      className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-green-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-green-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
-                      <Play className="w-4 h-4" />
+                      <Play className="w-3.5 h-3.5" />
                     </button></Tooltip>
                     <Tooltip content={folder.tabs && folder.tabs.length > 0 ? "New Window" : "No tabs to open"}><button 
                       disabled={!folder.tabs || folder.tabs.length === 0} 
                       onClick={(e) => { e.stopPropagation(); openFolderTabs(folder, 'new'); }} 
-                      className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-blue-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-blue-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
-                      <AppWindow className="w-4 h-4" />
+                      <AppWindow className="w-3.5 h-3.5" />
                     </button></Tooltip>
                     <Tooltip content={folder.tabs && folder.tabs.length > 0 ? "Incognito" : "No tabs to open"}><button 
                       disabled={!folder.tabs || folder.tabs.length === 0} 
                       onClick={(e) => { e.stopPropagation(); openFolderTabs(folder, 'incognito'); }} 
-                      className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-purple-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-purple-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
-                      <Ghost className="w-4 h-4" />
+                      <Ghost className="w-3.5 h-3.5" />
                     </button></Tooltip>
 
                     <Tooltip content={folder.tabs && folder.tabs.length > 0 ? "Close All Tabs" : "No tabs to close"}><button 
-                      disabled={!folder.tabs || folder.tabs.length === 0}
+                      disabled={!folder.tabs || folder.tabs.length === 0} 
                       onClick={(e) => { e.stopPropagation(); closeFolderTabs(folder); }} 
-                      className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-orange-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-orange-400 disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
-                      <XSquare className="w-4 h-4" />
+                      <XSquare className="w-3.5 h-3.5" />
                     </button></Tooltip>
                     <Tooltip content={folder.tabs && folder.tabs.length > 0 ? "Schedule Folder" : "No tabs to schedule"}><button 
-                      disabled={!folder.tabs || folder.tabs.length === 0}
+                      disabled={!folder.tabs || folder.tabs.length === 0} 
                       onClick={(e) => { e.stopPropagation(); openTimer(folder); }} 
-                      className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-accent-purple disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                      className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-accent-purple disabled:hover:text-white/40 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
                     >
-                      <Clock className="w-4 h-4" />
+                      <Clock className="w-3.5 h-3.5" />
                     </button></Tooltip>
-                    <Tooltip content="Delete Folder"><button onClick={(e) => { e.stopPropagation(); setShowDeleteModal({sessionId: folder.id}); }} className="p-2 hover:bg-white/10 rounded-lg text-white/40 hover:text-orange-400 transition-colors">
-                      <Trash2 className="w-4 h-4" />
+                    <Tooltip content="Delete Folder"><button onClick={(e) => { e.stopPropagation(); setShowDeleteModal({sessionId: folder.id}); }} className="p-1.5 hover:bg-white/10 rounded-lg text-white/40 hover:text-red-400 transition-colors">
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button></Tooltip>
                   </>
                 )}
@@ -1530,7 +1681,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
             )}
             {!isSelectMode && (
               <div className="pl-1 text-white/50 shrink-0">
-                {expandedFolder === folder.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                {expandedFolder === folder.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
             )}
           </div>
@@ -1545,30 +1696,38 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
               >
                 <div className="pt-4 mt-4 border-t border-white/[0.05] space-y-4">
                   {/* Local Tab Search Bar */}
-                  {folder.tabs && folder.tabs.length > 5 && (
+                  {folder.tabs && folder.tabs.length > 0 && (
                     <div className="relative flex items-center">
-                      <Search className="absolute left-3.5 w-3.5 h-3.5 text-white/30" />
+                      <Search className="absolute left-3 w-3.5 h-3.5 text-white/30" />
                       <input
                         type="text"
-                        placeholder={`Search in ${folder.tabs.length} tabs...`}
-                        value={tabSearchQuery}
-                        onChange={(e) => setTabSearchQuery(e.target.value)}
+                        placeholder={`Search ${folder.tabs.length} tabs in this folder...`}
+                        value={folderTabSearches[folder.id] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFolderTabSearches(prev => ({ ...prev, [folder.id]: val }));
+                          setFolderTabPages(prev => ({ ...prev, [folder.id]: 1 }));
+                        }}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-full pl-10 pr-12 py-2 text-xs text-white outline-none focus:border-accent-purple/50 focus:bg-white/5 transition-all"
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl pl-9 pr-9 py-2 text-xs text-white placeholder-white/30 outline-none focus:border-blue-500/50 focus:bg-white/[0.05] transition-all"
                       />
-                      {tabSearchQuery && (
+                      {(folderTabSearches[folder.id] || '') && (
                         <button 
-                          onClick={() => setTabSearchQuery('')}
-                          className="absolute right-3.5 text-[10px] text-white/40 hover:text-white transition-colors"
+                          onClick={() => {
+                            setFolderTabSearches(prev => ({ ...prev, [folder.id]: '' }));
+                            setFolderTabPages(prev => ({ ...prev, [folder.id]: 1 }));
+                          }}
+                          className="absolute right-2.5 p-1 rounded-md text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                          title="Clear search"
                         >
-                          Clear
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
                   )}
 
                   {/* Scrollable List of visible tabs */}
-                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1 pb-12 select-none">
+                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1 pb-2 select-none">
                     {visibleTabs.map((tab: any, idx: number) => (
                       <div key={idx} className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.03] group">
                         <div className="flex items-center gap-3 overflow-hidden flex-1">
@@ -1596,13 +1755,13 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Tooltip content="Open Tab"><button onClick={() => openTab(tab.url, 'current')} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-green-400 transition-all">
+                          <Tooltip content="Open Tab"><button onClick={() => openTab(tab.url, 'current', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-green-400 transition-all">
                             <Play className="w-3.5 h-3.5" />
                           </button></Tooltip>
-                          <Tooltip content="New Window"><button onClick={() => openTab(tab.url, 'new')} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-blue-400 transition-all">
+                          <Tooltip content="New Window"><button onClick={() => openTab(tab.url, 'new', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-blue-400 transition-all">
                             <AppWindow className="w-3.5 h-3.5" />
                           </button></Tooltip>
-                          <Tooltip content="Incognito"><button onClick={() => openTab(tab.url, 'incognito')} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-purple-400 transition-all">
+                          <Tooltip content="Incognito"><button onClick={() => openTab(tab.url, 'incognito', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-purple-400 transition-all">
                             <Ghost className="w-3.5 h-3.5" />
                           </button></Tooltip>
                           <Tooltip content="Close Tab"><button onClick={() => closeTab(tab.url)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-red-400 transition-all">
@@ -1614,7 +1773,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                           <Tooltip content="Edit Tab" align="right"><button onClick={() => setShowEditTabModal({ sessionId: folder.id, oldUrl: tab.url, url: tab.url, title: tab.title })} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-white transition-all">
                             <Pencil className="w-3.5 h-3.5" />
                           </button></Tooltip>
-                          <Tooltip content="Remove Tab" align="right"><button onClick={() => setShowDeleteModal({ sessionId: folder.id, url: tab.url })} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-orange-400 transition-all">
+                          <Tooltip content="Remove Tab" align="right"><button onClick={() => setShowDeleteModal({ sessionId: folder.id, url: tab.url })} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-red-400 transition-all">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button></Tooltip>
                         </div>
@@ -1628,20 +1787,79 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                     ) : null}
                   </div>
                   
-                  {sortedTabs.length > tabLimit && (
-                    <div className="flex justify-center pt-2">
-                      <button
-                        onClick={() => setTabLimit(prev => prev + 50)}
-                        className="px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-xs text-white/60 hover:text-white transition-all font-medium"
-                      >
-                        Show More ({sortedTabs.length - tabLimit} remaining)
-                      </button>
+                  {/* Inside-Folder Tabs Pagination Controls */}
+                  {matchingTabs.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-3 border-t border-white/[0.06] text-xs select-none">
+                      <div className="text-white/40 text-[11px]">
+                        Showing <span className="font-semibold text-white/80">{(activeTabPage - 1) * tabsPerPage + 1}–{Math.min(activeTabPage * tabsPerPage, matchingTabs.length)}</span> of <span className="font-semibold text-white/80">{matchingTabs.length}</span> tabs
+                      </div>
+
+                      <div className="flex items-center gap-2.5">
+                        {/* Per Page Selector for Tabs */}
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-white/40">Per page:</span>
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={tabsPerPage}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setTabsPerPage(val);
+                                localStorage.setItem('tabflow_tabs_per_page', String(val));
+                                setFolderTabPages(prev => ({ ...prev, [folder.id]: 1 }));
+                              }}
+                              className="appearance-none bg-black/40 hover:bg-black/60 border border-white/10 hover:border-white/20 rounded-md pl-2 pr-6 py-0.5 text-[11px] font-medium text-white/80 outline-none focus:border-blue-500/50 cursor-pointer transition-all"
+                            >
+                              <option value={5} className="bg-[#0f0e17] text-white">5</option>
+                              <option value={10} className="bg-[#0f0e17] text-white">10</option>
+                              <option value={20} className="bg-[#0f0e17] text-white">20</option>
+                              <option value={50} className="bg-[#0f0e17] text-white">50</option>
+                              <option value={9999} className="bg-[#0f0e17] text-white">All</option>
+                            </select>
+                            <ChevronDown className="absolute right-1.5 pointer-events-none w-3 h-3 text-white/40" />
+                          </div>
+                        </div>
+
+                        {/* Page Navigation */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            disabled={activeTabPage === 1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFolderTabPages(prev => ({ ...prev, [folder.id]: Math.max(1, activeTabPage - 1) }));
+                            }}
+                            className="p-1 rounded-md border border-white/10 bg-white/[0.02] hover:bg-white/[0.08] text-white/70 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                            title="Previous Page"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          </button>
+
+                          <span className="text-[11px] text-white/70 font-medium px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.06]">
+                            {activeTabPage} / {totalTabPages || 1}
+                          </span>
+
+                          <button
+                            disabled={activeTabPage === (totalTabPages || 1)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFolderTabPages(prev => ({ ...prev, [folder.id]: Math.min(totalTabPages, activeTabPage + 1) }));
+                            }}
+                            className="p-1 rounded-md border border-white/10 bg-white/[0.02] hover:bg-white/[0.08] text-white/70 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                            title="Next Page"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
 
-                  <div className="pt-2 mt-2">
-                    <button onClick={() => setShowAddTabModal(folder.id)} className="w-full py-3 border border-dashed border-white/10 rounded-xl text-xs font-medium text-white/40 hover:text-white/80 hover:bg-white/5 hover:border-white/20 transition-all flex items-center justify-center gap-2">
-                      <span>+ Add Tab to Folder</span>
+                  <div className="pt-2.5 mt-2 flex items-center justify-center">
+                    <button 
+                      onClick={() => setShowAddTabModal(folder.id)} 
+                      className="px-3.5 py-1.5 border border-dashed border-white/15 hover:border-white/30 rounded-lg text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Tab</span>
                     </button>
                   </div>
                 </div>
@@ -1660,7 +1878,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
           <h2 className="text-3xl font-semibold tracking-tight text-white mb-2">Folders</h2>
           <p className="text-white/50 text-lg font-light">Organize your workspace and set powerful schedules.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {isSelectMode ? (
             <>
               <button 
@@ -1668,29 +1886,29 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                   const allIds = new Set(filteredFolders.map(f => f.id));
                   setSelectedFolderIds(allIds);
                 }} 
-                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-4 py-2.5 rounded-xl text-sm font-medium"
+                className="bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
               >
                 Select All
               </button>
               <button 
                 onClick={() => setSelectedFolderIds(new Set())} 
-                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-4 py-2.5 rounded-xl text-sm font-medium"
+                className="bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
               >
                 Deselect All
               </button>
               <button 
                 disabled={selectedFolderIds.size === 0}
                 onClick={() => setShowBulkDeleteModal(true)} 
-                className="flex items-center gap-2 bg-red-600/90 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600/90 text-white transition-all shadow-lg shadow-red-500/20 px-4 py-2.5 rounded-xl text-sm font-medium disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600 text-white transition-all shadow-md shadow-red-500/20 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:cursor-not-allowed"
               >
-                <Trash2 className="w-4 h-4" /> Delete Selected ({selectedFolderIds.size})
+                <Trash2 className="w-3.5 h-3.5" /> Delete Selected ({selectedFolderIds.size})
               </button>
               <button 
                 onClick={() => {
                   setIsSelectMode(false);
                   setSelectedFolderIds(new Set());
                 }} 
-                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 transition-all px-4 py-2.5 rounded-xl text-sm font-medium"
+                className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
               >
                 Cancel
               </button>
@@ -1698,27 +1916,27 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
           ) : (
             <>
               <input type="file" accept=".json" ref={fileInputRef} onChange={handleImport} className="hidden" />
-              <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-4 py-2.5 rounded-xl text-sm font-medium">
-                <Download className="w-4 h-4" /> Import
+              <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium">
+                <Download className="w-3.5 h-3.5" /> Import
               </button>
               <button onClick={() => {
                 setSelectedExportFolders(new Set());
                 setSelectedExportTabs(new Set());
                 setExpandedExportFolders(new Set());
                 setShowExportModal(true);
-              }} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-4 py-2.5 rounded-xl text-sm font-medium">
-                <Upload className="w-4 h-4" /> Export
+              }} className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium">
+                <Upload className="w-3.5 h-3.5" /> Export
               </button>
               {folders.length > 0 && (
                 <button 
                   onClick={() => setIsSelectMode(true)} 
-                  className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-all px-4 py-2.5 rounded-xl text-sm font-medium"
+                  className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10 transition-all px-2.5 py-1.5 rounded-lg text-xs font-medium"
                 >
-                  <CheckSquare className="w-4 h-4" /> Select Mode
+                  <CheckSquare className="w-3.5 h-3.5" /> Select Mode
                 </button>
               )}
-              <button onClick={() => setShowCreateModal(true)} className="bg-blue-600 hover:bg-blue-500 text-white transition-all shadow-lg shadow-blue-500/20 px-6 py-2.5 rounded-xl text-sm font-medium">
-                + New Folder
+              <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white transition-all shadow-md shadow-blue-500/25 px-3 py-1.5 rounded-lg text-xs font-semibold">
+                <Plus className="w-3.5 h-3.5" /> New Folder
               </button>
             </>
           )}
@@ -1738,9 +1956,21 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
             setSearchQuery(e.target.value);
             setFolderPage(1);
           }}
-          placeholder="Search folders..." 
-          className="os-input w-full pl-11 h-12 bg-white/[0.02] text-white"
+          placeholder="Search folders or tabs..." 
+          className="os-input w-full pl-11 pr-11 h-12 bg-white/[0.02] text-white"
         />
+        {searchQuery && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setFolderPage(1);
+            }}
+            className="absolute inset-y-0 right-0 pr-4 flex items-center text-white/40 hover:text-white transition-colors"
+            title="Clear search"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Simplified Sort Button */}
@@ -1767,104 +1997,161 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
           </div>
         ) : (
           <>
-            {pinnedFolders.length > 0 && (
+            {pinnedOnPage.length > 0 && (
               <div>
-                <h3 className="text-xs uppercase tracking-widest text-white/50 font-medium mb-4 flex items-center gap-2">
+                <h3 className="text-xs uppercase tracking-widest text-white/50 font-medium mb-3 flex items-center gap-2">
                   <Pin className="w-3.5 h-3.5" /> Pinned Folders
                 </h3>
-                {renderFolderList(pinnedFolders)}
+                {renderFolderList(pinnedOnPage)}
               </div>
             )}
             
-            {unpinnedFolders.length > 0 && (
-              <div>
-                <h3 className="text-xs uppercase tracking-widest text-white/50 font-medium mb-4 flex items-center gap-2">
-                  <Folder className="w-3.5 h-3.5" /> {pinnedFolders.length > 0 ? "Other Folders" : "All Folders"}
-                </h3>
-                {renderFolderList(paginatedUnpinnedFolders)}
+            {unpinnedOnPage.length > 0 && (
+              <div className={pinnedOnPage.length > 0 ? "mt-5" : ""}>
+                {hasAnyPinned && (
+                  <h3 className="text-xs uppercase tracking-widest text-white/50 font-medium mb-3 flex items-center gap-2">
+                    <Folder className="w-3.5 h-3.5" /> Other Folders
+                  </h3>
+                )}
+                {renderFolderList(unpinnedOnPage)}
+              </div>
+            )}
 
-                {/* Pagination Controls */}
-                {unpinnedFolders.length > 5 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/[0.08]">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xs text-white/50">Show</span>
-                      <div className="relative flex items-center">
-                        <select
-                          value={foldersPerPage}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setFoldersPerPage(val);
-                            localStorage.setItem('tabflow_folders_per_page', String(val));
-                            setFolderPage(1);
-                          }}
-                          className="appearance-none bg-[#110e20] border border-white/10 rounded-lg pl-3 pr-8 py-1.5 text-xs text-white outline-none focus:border-accent-purple/50 transition-all cursor-pointer"
-                        >
-                          <option value={5} className="bg-[#110e20] text-white">5 folders</option>
-                          <option value={10} className="bg-[#110e20] text-white">10 folders</option>
-                          <option value={20} className="bg-[#110e20] text-white">20 folders</option>
-                          <option value={50} className="bg-[#110e20] text-white">50 folders</option>
-                          <option value={100} className="bg-[#110e20] text-white">100 folders</option>
-                          <option value={9999} className="bg-[#110e20] text-white">All folders</option>
-                        </select>
-                        <ChevronDown className="absolute right-2.5 pointer-events-none w-3.5 h-3.5 text-white/40" />
-                      </div>
-                      <span className="text-xs text-white/30">
-                        Showing {unpinnedFolders.length > 0 ? (activePage - 1) * foldersPerPage + 1 : 0}–{Math.min(activePage * foldersPerPage, unpinnedFolders.length)} of {unpinnedFolders.length} folders
-                      </span>
+            {/* Pagination Controls */}
+            {totalFolders > 0 && (
+              <div className="mt-8 px-4 py-3 rounded-2xl bg-white/[0.02] border border-white/[0.07] backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-4 select-none shadow-sm shadow-black/20">
+                {/* Left: Summary Counter */}
+                <div className="flex items-center gap-2 text-xs text-white/50">
+                  <span className="flex items-center gap-1.5">
+                    <span>Showing</span>
+                    <span className="font-semibold text-white/90">
+                      {(activePage - 1) * foldersPerPage + 1}–{Math.min(activePage * foldersPerPage, totalFolders)}
+                    </span>
+                    <span>of</span>
+                    <span className="font-semibold text-white/90">{totalFolders}</span>
+                    <span>{totalFolders === 1 ? 'folder' : 'folders'}</span>
+                  </span>
+                </div>
+
+                {/* Right: Controls Cluster (Per Page + Navigation) */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Per Page Selector */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/40 font-medium">Per page:</span>
+                    <div className="relative inline-flex items-center">
+                      <select
+                        value={foldersPerPage}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setFoldersPerPage(val);
+                          localStorage.setItem('tabflow_folders_per_page', String(val));
+                          setFolderPage(1);
+                        }}
+                        className="appearance-none bg-black/40 hover:bg-black/60 border border-white/10 hover:border-white/20 rounded-lg pl-2.5 pr-7 py-1 text-xs font-medium text-white/80 hover:text-white outline-none focus:border-blue-500/50 transition-all cursor-pointer shadow-inner"
+                      >
+                        <option value={5} className="bg-[#0f0e17] text-white">5</option>
+                        <option value={10} className="bg-[#0f0e17] text-white">10</option>
+                        <option value={20} className="bg-[#0f0e17] text-white">20</option>
+                        <option value={50} className="bg-[#0f0e17] text-white">50</option>
+                        <option value={9999} className="bg-[#0f0e17] text-white">All</option>
+                      </select>
+                      <ChevronDown className="absolute right-2 pointer-events-none w-3.5 h-3.5 text-white/40" />
                     </div>
+                  </div>
 
-                    {totalPages > 1 && (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setFolderPage(p => Math.max(1, p - 1))}
-                          disabled={activePage === 1}
-                          className="p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-white transition-colors disabled:cursor-not-allowed"
-                          title="Previous Page"
-                        >
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
+                  <div className="h-4 w-px bg-white/10 hidden sm:block" />
 
-                        {(() => {
-                          const pages: (number | string)[] = [];
-                          for (let i = 1; i <= totalPages; i++) {
-                            if (i === 1 || i === totalPages || Math.abs(i - activePage) <= 1) {
-                              pages.push(i);
-                            } else if (pages[pages.length - 1] !== '...') {
-                              pages.push('...');
-                            }
+                  {/* Page Navigation Buttons */}
+                  <div className="flex items-center gap-1">
+                    {/* First Page button (only if > 2 pages) */}
+                    {totalPages > 2 && (
+                      <button
+                        onClick={() => setFolderPage(1)}
+                        disabled={activePage === 1}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.08] text-white/60 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                        title="First Page"
+                      >
+                        <ChevronsLeft className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {/* Previous Button */}
+                    <button
+                      onClick={() => setFolderPage(p => Math.max(1, p - 1))}
+                      disabled={activePage === 1}
+                      className="h-8 px-2.5 rounded-lg flex items-center gap-1 border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.08] text-white/70 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all text-xs font-medium"
+                      title="Previous Page"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">Prev</span>
+                    </button>
+
+                    {/* Numbered Page Buttons */}
+                    {totalPages <= 1 ? (
+                      <span className="min-w-8 h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/10 text-white/80 flex items-center justify-center border border-white/10 select-none">
+                        1
+                      </span>
+                    ) : (
+                      (() => {
+                        const pages: (number | string)[] = [];
+                        if (totalPages <= 5) {
+                          for (let i = 1; i <= totalPages; i++) pages.push(i);
+                        } else {
+                          pages.push(1);
+                          if (activePage > 3) pages.push('...');
+                          const start = Math.max(2, activePage - 1);
+                          const end = Math.min(totalPages - 1, activePage + 1);
+                          for (let i = start; i <= end; i++) pages.push(i);
+                          if (activePage < totalPages - 2) pages.push('...');
+                          pages.push(totalPages);
+                        }
+
+                        return pages.map((p, idx) => {
+                          if (p === '...') {
+                            return <span key={`dots-${idx}`} className="w-5 text-center text-xs text-white/30 select-none">...</span>;
                           }
-                          return pages.map((p, idx) => {
-                            if (p === '...') {
-                              return <span key={`dots-${idx}`} className="px-2 text-xs text-white/30">...</span>;
-                            }
-                            return (
-                              <button
-                                key={p}
-                                onClick={() => setFolderPage(p as number)}
-                                className={`min-w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                                  activePage === p
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                    : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white border border-white/10'
-                                }`}
-                              >
-                                {p}
-                              </button>
-                            );
-                          });
-                        })()}
+                          const isCurrent = activePage === p;
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => setFolderPage(p as number)}
+                              className={`min-w-8 h-8 px-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center ${
+                                isCurrent
+                                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-1 ring-white/20'
+                                  : 'bg-white/[0.02] text-white/60 hover:text-white hover:bg-white/[0.08] border border-white/[0.06] hover:border-white/15'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          );
+                        });
+                      })()
+                    )}
 
-                        <button
-                          onClick={() => setFolderPage(p => Math.min(totalPages, p + 1))}
-                          disabled={activePage === totalPages}
-                          className="p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-white transition-colors disabled:cursor-not-allowed"
-                          title="Next Page"
-                        >
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
+                    {/* Next Button */}
+                    <button
+                      onClick={() => setFolderPage(p => Math.min(totalPages, p + 1))}
+                      disabled={activePage === totalPages}
+                      className="h-8 px-2.5 rounded-lg flex items-center gap-1 border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.08] text-white/70 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all text-xs font-medium"
+                      title="Next Page"
+                    >
+                      <span className="hidden md:inline">Next</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Last Page button (only if > 2 pages) */}
+                    {totalPages > 2 && (
+                      <button
+                        onClick={() => setFolderPage(totalPages)}
+                        disabled={activePage === totalPages}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.08] text-white/60 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                        title="Last Page"
+                      >
+                        <ChevronsRight className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
-                )}
+                </div>
               </div>
             )}
           </>
@@ -1876,78 +2163,90 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
         <>
           {/* Bulk Delete Confirmation Modal */}
           <AnimatePresence>
-        {showBulkDeleteModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              onClick={() => setShowBulkDeleteModal(false)} 
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm" 
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }} 
-              animate={{ opacity: 1, scale: 1 }} 
-              exit={{ opacity: 0, scale: 0.95 }} 
-              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0c0a12]/95 backdrop-blur-xl p-8 shadow-2xl"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 mb-4 animate-bounce">
-                  <Trash2 className="w-6 h-6" />
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">{selectedFolderIds.size === 1 ? 'Delete Folder' : 'Delete Multiple Folders'}</h3>
-                <p className="text-sm text-white/50 mb-6">
-                  Are you sure you want to delete the {selectedFolderIds.size === 1 ? 'selected folder' : <><span className="text-white font-medium">{selectedFolderIds.size}</span> selected folders</>}? This action is permanent and cannot be undone.
-                </p>
-                <div className="flex w-full gap-3">
-                  <button 
-                    onClick={() => setShowBulkDeleteModal(false)}
-                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-medium border border-white/10 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={async () => {
-                      setShowBulkDeleteModal(false);
-                      const ids = Array.from(selectedFolderIds);
-                      setIsSelectMode(false);
-                      setSelectedFolderIds(new Set());
-                      await handleBulkDelete(ids);
-                    }}
-                    className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-medium shadow-lg shadow-red-600/20 transition-colors"
-                  >
-                    {selectedFolderIds.size === 1 ? 'Delete' : 'Delete All'}
-                  </button>
-                </div>
+            {showBulkDeleteModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  exit={{ opacity: 0 }} 
+                  onClick={() => setShowBulkDeleteModal(false)} 
+                  className="fixed inset-0 bg-black/75 backdrop-blur-md" 
+                />
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 12 }} 
+                  animate={{ opacity: 1, scale: 1, y: 0 }} 
+                  exit={{ opacity: 0, scale: 0.95, y: 12 }} 
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="relative w-full max-w-[360px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-5 shadow-2xl shadow-black/90 text-center"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center mx-auto mb-3 text-red-400">
+                    <Trash2 className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-white tracking-tight mb-1">
+                    {selectedFolderIds.size === 1 ? 'Delete Workspace Folder?' : 'Delete Selected Folders?'}
+                  </h3>
+                  <p className="text-xs text-white/50 mb-3.5 leading-normal">
+                    Permanently deletes selected folders, tabs, and timers.
+                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => setShowBulkDeleteModal(false)}
+                      className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 active:bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={async () => {
+                        setShowBulkDeleteModal(false);
+                        const ids = Array.from(selectedFolderIds);
+                        setIsSelectMode(false);
+                        setSelectedFolderIds(new Set());
+                        await handleBulkDelete(ids);
+                      }}
+                      className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 active:scale-[0.98] rounded-lg text-xs font-semibold text-white shadow-md shadow-red-500/20 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>{selectedFolderIds.size === 1 ? 'Delete Folder' : 'Delete All'}</span>
+                    </button>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            )}
+          </AnimatePresence>
 
       {/* Export Folders Modal */}
       <AnimatePresence>
         {showExportModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowExportModal(false)} className="fixed inset-0 bg-black/60" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a] p-8 shadow-2xl shadow-black/80 max-h-[85vh] flex flex-col">
-              <div className="flex items-center justify-between mb-6 shrink-0">
-                <h3 className="text-xl font-semibold text-white">Export Folders</h3>
-                <div className="flex gap-2">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowExportModal(false)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[380px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90 max-h-[80vh] flex flex-col">
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08] shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                    <Download className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-xs font-semibold text-white tracking-tight">Export Folders</h3>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button onClick={() => {
                     const allFolders = new Set(folders.map(f => f.id));
                     const allTabs = new Set(folders.flatMap(f => f.tabs.map((t: any) => `${f.id}_${t.url}`)));
                     setSelectedExportFolders(allFolders);
                     setSelectedExportTabs(allTabs);
-                  }} className="px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors">Select All</button>
+                  }} className="px-2 py-0.5 text-[10px] font-medium text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-md transition-colors">Select All</button>
                   <button onClick={() => {
                     setSelectedExportFolders(new Set());
                     setSelectedExportTabs(new Set());
-                  }} className="px-3 py-1.5 text-xs font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors">Deselect All</button>
+                  }} className="px-2 py-0.5 text-[10px] font-medium text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-md transition-colors">Deselect</button>
+                  <button onClick={() => setShowExportModal(false)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors ml-0.5">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2 mb-6" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 mb-3 scrollbar-hide max-h-56">
                 {folders.map(folder => {
                   const isFolderSelected = selectedExportFolders.has(folder.id);
                   const isExpanded = expandedExportFolders.has(folder.id);
@@ -1956,14 +2255,14 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                   const isIndeterminate = selectedTabsCount > 0 && selectedTabsCount < folderTabs.length;
 
                   return (
-                    <div key={folder.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                      <div className="flex items-center p-3 hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => {
+                    <div key={folder.id} className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
+                      <div className="flex items-center p-2.5 hover:bg-white/[0.03] transition-colors cursor-pointer" onClick={() => {
                         const newExpanded = new Set(expandedExportFolders);
                         if (isExpanded) newExpanded.delete(folder.id);
                         else newExpanded.add(folder.id);
                         setExpandedExportFolders(newExpanded);
                       }}>
-                        <div className="mr-3 flex-shrink-0" onClick={(e) => {
+                        <div className="mr-2.5 flex-shrink-0" onClick={(e) => {
                           e.stopPropagation();
                           const newFolders = new Set(selectedExportFolders);
                           const newTabs = new Set(selectedExportTabs);
@@ -1977,26 +2276,26 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                           setSelectedExportFolders(newFolders);
                           setSelectedExportTabs(newTabs);
                         }}>
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isFolderSelected ? 'bg-blue-500 border-blue-500' : isIndeterminate ? 'bg-blue-500/50 border-blue-500/50' : 'border-white/20 bg-black/20'}`}>
-                            {isFolderSelected && <Check className="w-3.5 h-3.5 text-white" />}
-                            {isIndeterminate && <div className="w-2.5 h-0.5 bg-white rounded-full" />}
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isFolderSelected ? 'bg-blue-600 border-blue-600' : isIndeterminate ? 'bg-blue-600/50 border-blue-600/50' : 'border-white/20 bg-black/40'}`}>
+                            {isFolderSelected && <Check className="w-3 h-3 text-white" />}
+                            {isIndeterminate && <div className="w-2 h-0.5 bg-white rounded-full" />}
                           </div>
                         </div>
-                        <Folder className="w-5 h-5 text-accent-blue mr-3 flex-shrink-0" />
-                        <span className="text-sm font-medium text-white flex-1 truncate">{folder.name}</span>
-                        <span className="text-xs text-white/40 mr-4">{folderTabs.length} tabs</span>
-                        <ChevronDown className={`w-4 h-4 text-white/40 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        <Folder className="w-4 h-4 text-blue-400 mr-2 flex-shrink-0" />
+                        <span className="text-xs font-medium text-white flex-1 truncate">{folder.name}</span>
+                        <span className="text-[10px] text-white/40 mr-2">{folderTabs.length} tabs</span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                       </div>
                       
                       <AnimatePresence>
                         {isExpanded && (
                           <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
-                            <div className="p-3 pt-0 border-t border-white/5 bg-black/20 space-y-1">
+                            <div className="p-2 pt-0 border-t border-white/5 bg-black/30 space-y-0.5">
                               {folderTabs.map((tab: any, idx: number) => {
                                 const tabId = `${folder.id}_${tab.url}`;
                                 const isTabSelected = selectedExportTabs.has(tabId);
                                 return (
-                                  <div key={idx} className="flex items-center p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors" onClick={() => {
+                                  <div key={idx} className="flex items-center p-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors" onClick={() => {
                                     const newTabs = new Set(selectedExportTabs);
                                     if (isTabSelected) newTabs.delete(tabId);
                                     else newTabs.add(tabId);
@@ -2008,11 +2307,11 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                                     else newFolders.delete(folder.id);
                                     setSelectedExportFolders(newFolders);
                                   }}>
-                                    <div className={`w-4 h-4 rounded border flex items-center justify-center mr-3 transition-colors shrink-0 ${isTabSelected ? 'bg-blue-500 border-blue-500' : 'border-white/20 bg-black/20'}`}>
-                                      {isTabSelected && <Check className="w-3 h-3 text-white" />}
+                                    <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center mr-2.5 transition-colors shrink-0 ${isTabSelected ? 'bg-blue-600 border-blue-600' : 'border-white/20 bg-black/40'}`}>
+                                      {isTabSelected && <Check className="w-2.5 h-2.5 text-white" />}
                                     </div>
-                                    {tab.favIconUrl ? <img src={tab.favIconUrl} className="w-3.5 h-3.5 mr-2 flex-shrink-0" /> : <div className="w-3.5 h-3.5 bg-white/10 rounded-sm mr-2 flex-shrink-0" />}
-                                    <span className="text-xs text-white/70 truncate" title={tab.url}>{tab.title}</span>
+                                    {tab.favIconUrl ? <img src={tab.favIconUrl} className="w-3 h-3 mr-1.5 flex-shrink-0" /> : <div className="w-3 h-3 bg-white/10 rounded-sm mr-1.5 flex-shrink-0" />}
+                                    <span className="text-[11px] text-white/70 truncate" title={tab.url}>{tab.title}</span>
                                   </div>
                                 )
                               })}
@@ -2023,12 +2322,17 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                     </div>
                   )
                 })}
-                {folders.length === 0 && <div className="text-center text-white/40 py-8 text-sm">No folders to export.</div>}
+                {folders.length === 0 && <div className="text-center text-white/40 py-6 text-xs">No folders to export.</div>}
               </div>
 
-              <div className="flex w-full gap-3 shrink-0">
-                <button onClick={() => setShowExportModal(false)} className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-white/80 transition-colors">Cancel</button>
-                <button onClick={handleExport} disabled={selectedExportFolders.size === 0 && selectedExportTabs.size === 0} className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50">Export Selected</button>
+              <div className="flex items-center justify-between pt-2.5 border-t border-white/[0.08] shrink-0">
+                <span className="text-[11px] text-white/40">
+                  {selectedExportFolders.size} folder{selectedExportFolders.size !== 1 ? 's' : ''} • {selectedExportTabs.size} tab{selectedExportTabs.size !== 1 ? 's' : ''}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowExportModal(false)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+                  <button onClick={handleExport} disabled={selectedExportFolders.size === 0 && selectedExportTabs.size === 0} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 disabled:opacity-40">Export</button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -2039,18 +2343,36 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCreateModal(false)} className="fixed inset-0 bg-black/60" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a] p-8 shadow-2xl shadow-black/80">
-              <h3 className="text-xl font-semibold text-white mb-6">Create New Folder</h3>
-              <div className="space-y-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowCreateModal(false)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90">
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                    <Folder className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-xs font-semibold text-white tracking-tight">Create Folder</h3>
+                </div>
+                <button onClick={() => setShowCreateModal(false)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="space-y-3">
                 <div>
-                  <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Folder Name</label>
-                  <input type="text" className="os-input w-full bg-[#07050f]" placeholder="e.g. Project Apollo" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} autoFocus />
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1.5 block">Folder Name</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50 transition-colors" 
+                    placeholder="e.g. Project Apollo" 
+                    value={newFolderName} 
+                    onChange={e => setNewFolderName(e.target.value)} 
+                    onKeyDown={e => { if (e.key === 'Enter' && newFolderName.trim()) submitCreateFolder(); }}
+                    autoFocus 
+                  />
                 </div>
               </div>
-              <div className="flex w-full gap-3 mt-8">
-                <button onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-white/80 transition-colors">Cancel</button>
-                <button onClick={submitCreateFolder} disabled={!newFolderName.trim()} className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50">Create Folder</button>
+              <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-white/[0.08]">
+                <button onClick={() => setShowCreateModal(false)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+                <button onClick={submitCreateFolder} disabled={!newFolderName.trim()} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 disabled:opacity-40">Create</button>
               </div>
             </motion.div>
           </div>
@@ -2061,33 +2383,44 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showAddTabModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddTabModal(null)} className="fixed inset-0 bg-black/60" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a] p-8 shadow-2xl shadow-black/80">
-              <h3 className="text-xl font-semibold text-white mb-6">Add Tab</h3>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddTabModal(null)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90">
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                    <Plus className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-xs font-semibold text-white tracking-tight">Add Tab</h3>
+                </div>
+                <button onClick={() => setShowAddTabModal(null)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
               
-              <button onClick={submitScanTabs} className="w-full py-4 mb-6 bg-accent-blue/10 border border-accent-blue/20 hover:bg-accent-blue/20 rounded-xl flex items-center justify-center gap-3 text-accent-blue transition-all">
-                <span className="font-medium">Scan & Save All Open Tabs</span>
+              <button onClick={submitScanTabs} className="w-full py-2 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 rounded-lg flex items-center justify-center gap-2 text-blue-400 text-xs font-medium transition-all mb-2.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Scan & Save All Open Tabs</span>
               </button>
               
-              <div className="relative flex items-center py-2 mb-6">
-                <div className="flex-grow border-t border-white/10"></div>
-                <span className="flex-shrink-0 mx-4 text-white/30 text-xs font-medium uppercase tracking-widest">OR Add Manually</span>
-                <div className="flex-grow border-t border-white/10"></div>
+              <div className="relative flex items-center my-2.5">
+                <div className="flex-grow border-t border-white/5"></div>
+                <span className="flex-shrink-0 mx-2 text-white/30 text-[10px] font-semibold uppercase tracking-wider">or add manually</span>
+                <div className="flex-grow border-t border-white/5"></div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-2.5">
                 <div>
-                  <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Tab Title (Optional)</label>
-                  <input type="text" className="os-input w-full bg-[#07050f]" placeholder="e.g. My Document" value={newTabName} onChange={e => setNewTabName(e.target.value)} />
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">Title (Optional)</label>
+                  <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50" placeholder="e.g. Documentation" value={newTabName} onChange={e => setNewTabName(e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">URL</label>
-                  <input type="text" className="os-input w-full bg-[#07050f]" placeholder="e.g. google.com" value={newTabUrl} onChange={e => setNewTabUrl(e.target.value)} />
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">URL</label>
+                  <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50" placeholder="e.g. google.com" value={newTabUrl} onChange={e => setNewTabUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newTabUrl.trim()) submitAddTabManually(); }} />
                 </div>
               </div>
-              <div className="flex w-full gap-3 mt-8">
-                <button onClick={() => setShowAddTabModal(null)} className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-white/80 transition-colors">Cancel</button>
-                <button onClick={submitAddTabManually} disabled={!newTabUrl.trim()} className="flex-1 px-4 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50">Add Tab</button>
+              <div className="flex items-center justify-end gap-2 mt-3.5 pt-2.5 border-t border-white/[0.08]">
+                <button onClick={() => setShowAddTabModal(null)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+                <button onClick={submitAddTabManually} disabled={!newTabUrl.trim()} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 disabled:opacity-40">Add Tab</button>
               </div>
             </motion.div>
           </div>
@@ -2098,22 +2431,32 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showEditTabModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowEditTabModal(null)} className="fixed inset-0 bg-black/60" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a] p-8 shadow-2xl shadow-black/80">
-              <h3 className="text-xl font-semibold text-white mb-6">Edit Tab</h3>
-              <div className="space-y-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowEditTabModal(null)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90">
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-xs font-semibold text-white tracking-tight">Edit Tab</h3>
+                </div>
+                <button onClick={() => setShowEditTabModal(null)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="space-y-2.5">
                 <div>
-                  <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">Tab Title</label>
-                  <input type="text" className="os-input w-full bg-[#07050f]" value={showEditTabModal.title} onChange={e => setShowEditTabModal({...showEditTabModal, title: e.target.value})} autoFocus />
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">Title</label>
+                  <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50" value={showEditTabModal.title} onChange={e => setShowEditTabModal({...showEditTabModal, title: e.target.value})} autoFocus />
                 </div>
                 <div>
-                  <label className="text-xs uppercase tracking-widest text-white/40 mb-2 block">URL</label>
-                  <input type="text" className="os-input w-full bg-[#07050f]" value={showEditTabModal.url} onChange={e => setShowEditTabModal({...showEditTabModal, url: e.target.value})} />
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">URL</label>
+                  <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50" value={showEditTabModal.url} onChange={e => setShowEditTabModal({...showEditTabModal, url: e.target.value})} onKeyDown={e => { if (e.key === 'Enter' && showEditTabModal.url.trim()) submitEditTab(); }} />
                 </div>
               </div>
-              <div className="flex w-full gap-3 mt-8">
-                <button onClick={() => setShowEditTabModal(null)} className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-white/80 transition-colors">Cancel</button>
-                <button onClick={submitEditTab} disabled={!showEditTabModal.url.trim()} className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50">Save Changes</button>
+              <div className="flex items-center justify-end gap-2 mt-3.5 pt-2.5 border-t border-white/[0.08]">
+                <button onClick={() => setShowEditTabModal(null)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+                <button onClick={submitEditTab} disabled={!showEditTabModal.url.trim()} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 disabled:opacity-40">Save</button>
               </div>
             </motion.div>
           </div>
@@ -2124,43 +2467,60 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showShareModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowShareModal(null)} className="fixed inset-0 bg-black/60" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a] p-8 shadow-2xl shadow-black/80 flex flex-col max-h-[85vh]">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-white">Share "{showShareModal.folderName}"</h3>
-                <button onClick={() => setShowShareModal(null)} className="text-white/40 hover:text-white transition-colors">Close</button>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowShareModal(null)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[580px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90 flex flex-col max-h-[85vh]">
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08] shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                    <Share2 className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-xs font-semibold text-white tracking-tight truncate max-w-[360px]">Share "{showShareModal.folderName}"</h3>
+                </div>
+                <button onClick={() => setShowShareModal(null)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
               
-              <div className="flex-1 overflow-hidden flex flex-col bg-[#07050f] rounded-2xl border border-white/[0.04]">
-                {isGeneratingShare ? (
-                  <div className="flex-1 flex flex-col items-center justify-center py-20">
-                    <Sparkles className="w-8 h-8 text-blue-500 animate-pulse mb-4" />
-                    <p className="text-white/50 text-sm font-medium tracking-wide">AI is summarizing your workspace...</p>
-                  </div>
-                ) : shareLink ? (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center text-green-400 mb-2">
-                      <Share2 className="w-8 h-8" />
+              <div className="flex-1 overflow-hidden flex flex-col bg-[#07050f]/80 rounded-xl border border-white/[0.04]">
+                {/* Public Link Banner if generated */}
+                {shareLink && (
+                  <div className="p-3 bg-emerald-500/10 border-b border-emerald-500/20 flex flex-col gap-2 shrink-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Public Link Active</span>
+                      </div>
+                      <a 
+                        href={shareLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 hover:underline font-medium"
+                      >
+                        View Public Page <ExternalLink className="w-3 h-3" />
+                      </a>
                     </div>
-                    <h4 className="text-lg font-semibold text-white">Share Link Generated</h4>
-                    <p className="text-sm text-white/50 max-w-md">
-                      This folder is shared publicly. Anyone with this link can view the tabs in this workspace.
-                    </p>
-                    <div className="w-full max-w-md bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between gap-3">
-                      <span className="text-sm text-blue-400 font-mono truncate select-all">{shareLink}</span>
+                    <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg p-1.5">
+                      <span className="text-xs text-blue-300 font-mono truncate select-all flex-1 px-1">{shareLink}</span>
                       <button 
                         onClick={() => { navigator.clipboard.writeText(shareLink); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }}
-                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold shrink-0 transition-colors"
+                        className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-semibold shrink-0 transition-colors flex items-center gap-1"
                       >
-                        {shareCopied ? 'Copied!' : 'Copy'}
+                        {shareCopied ? <><Check className="w-3 h-3 text-emerald-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
                       </button>
                     </div>
                   </div>
+                )}
+
+                {isGeneratingShare ? (
+                  <div className="flex-1 flex flex-col items-center justify-center py-12">
+                    <Sparkles className="w-6 h-6 text-blue-400 animate-pulse mb-2.5" />
+                    <p className="text-white/50 text-xs font-medium tracking-wide">AI is summarizing workspace...</p>
+                  </div>
                 ) : !shareMarkdown ? (
-                  <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
-                    <p className="text-sm text-white/50 mb-2 px-2">Select the tabs you want to include in the public summary:</p>
+                  <div className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-1 max-h-64 scrollbar-hide">
+                    <p className="text-[11px] text-white/50 mb-1 px-1">Select tabs to include:</p>
                     {showShareModal.tabs.map((tab: any, index: number) => (
-                      <label key={index} className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 cursor-pointer transition-colors border border-transparent hover:border-white/5">
+                      <label key={index} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors border border-transparent hover:border-white/5">
                         <input 
                           type="checkbox" 
                           checked={selectedShareTabs.has(tab.url)}
@@ -2170,117 +2530,121 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                             else newSet.delete(tab.url);
                             setSelectedShareTabs(newSet);
                           }}
-                          className="w-4 h-4 shrink-0 rounded-md border-white/20 bg-black/20 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                          className="w-3.5 h-3.5 shrink-0 rounded border-white/20 bg-black/40 text-blue-600 focus:ring-0 cursor-pointer"
                         />
                         <div className="flex flex-col min-w-0">
-                          <span className="text-sm text-white/90 font-medium truncate">{tab.title}</span>
-                          <span className="text-xs text-white/40 truncate">{tab.url}</span>
+                          <span className="text-xs text-white/90 font-medium truncate">{tab.title}</span>
+                          <span className="text-[10px] text-white/40 truncate">{tab.url}</span>
                         </div>
                       </label>
                     ))}
                   </div>
                 ) : (
                   <>
-                    <div className="flex border-b border-white/5 bg-white/[0.02] px-4 py-2 gap-2 shrink-0">
-                      <button
-                        onClick={() => setShareViewMode('preview')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                          shareViewMode === 'preview'
-                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                            : 'text-white/40 hover:text-white hover:bg-white/5 border border-transparent'
-                        }`}
-                      >
-                        Preview
-                      </button>
-                      <button
-                        onClick={() => setShareViewMode('edit')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                          shareViewMode === 'edit'
-                            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                            : 'text-white/40 hover:text-white hover:bg-white/5 border border-transparent'
-                        }`}
-                      >
-                        Edit Raw
-                      </button>
+                    <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] px-3 py-1.5 shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setShareViewMode('preview')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                            shareViewMode === 'preview'
+                              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                              : 'text-white/40 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          Preview
+                        </button>
+                        <button
+                          onClick={() => setShareViewMode('edit')}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                            shareViewMode === 'edit'
+                              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                              : 'text-white/40 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          Edit Raw
+                        </button>
+                      </div>
+                      <span className="text-[10px] text-white/40 font-medium">Workspace Summary</span>
                     </div>
                     {shareViewMode === 'preview' ? (
-                      <div className="flex-1 overflow-y-auto p-6" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+                      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide max-h-[360px]">
                         <MarkdownPreview content={shareMarkdown} />
                       </div>
                     ) : (
                       <textarea
-                        className="flex-1 w-full h-full min-h-[300px] bg-transparent text-sm text-white/80 p-6 outline-none resize-none font-mono"
+                        className="flex-1 w-full h-full min-h-[220px] bg-transparent text-xs text-white/80 p-3 outline-none resize-none font-mono scrollbar-hide"
                         value={shareMarkdown}
                         onChange={e => setShareMarkdown(e.target.value)}
-                        style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}
                       />
                     )}
                   </>
                 )}
               </div>
               
-              <div className="flex w-full gap-3 mt-6">
+              <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-white/[0.08] shrink-0">
                 {!shareLink && (
                   <div className="relative">
                     <select 
                       value={linkExpiry} 
                       onChange={e => setLinkExpiry(Number(e.target.value))}
-                      className="appearance-none h-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 rounded-xl pl-4 pr-10 py-3 text-sm outline-none transition-colors cursor-pointer"
+                      className="appearance-none bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 rounded-lg pl-2.5 pr-7 py-1.5 text-xs outline-none transition-colors cursor-pointer"
                     >
-                      <option value={1}>Expires in 1 Day</option>
-                      <option value={7}>Expires in 7 Days</option>
-                      <option value={30}>Expires in 30 Days</option>
-                      <option value={365}>Expires in 1 Year</option>
+                      <option value={1}>1 Day</option>
+                      <option value={7}>7 Days</option>
+                      <option value={30}>30 Days</option>
+                      <option value={365}>1 Year</option>
                     </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/40 pointer-events-none" />
                   </div>
                 )}
-                <button onClick={() => setShowShareModal(null)} className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-white/80 transition-colors">Done</button>
-                {shareLink ? (
-                  <>
+                <div className="flex items-center gap-2 ml-auto">
+                  <button onClick={() => setShowShareModal(null)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Done</button>
+                  {shareLink ? (
+                    <>
+                      <button 
+                        onClick={() => {
+                          setShareLink('');
+                          setShareMarkdown('');
+                          setShareViewMode('preview');
+                          if (showShareModal) {
+                            chrome.runtime.sendMessage({
+                              type: 'UPDATE_FOLDER_SHARE_LINK',
+                              sessionId: showShareModal.folderId,
+                              shareLink: ''
+                            }, () => {
+                              loadFolders();
+                            });
+                          }
+                        }} 
+                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-white/80 transition-colors"
+                      >
+                        Regenerate
+                      </button>
+                      <button 
+                        onClick={() => { navigator.clipboard.writeText(shareLink); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }} 
+                        className="px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 bg-green-500/20 text-green-400 border border-green-500/30"
+                      >
+                        {shareCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Link</>}
+                      </button>
+                    </>
+                  ) : !shareMarkdown ? (
                     <button 
-                      onClick={() => {
-                        setShareLink('');
-                        setShareMarkdown('');
-                        setShareViewMode('preview');
-                        if (showShareModal) {
-                          chrome.runtime.sendMessage({
-                            type: 'UPDATE_FOLDER_SHARE_LINK',
-                            sessionId: showShareModal.folderId,
-                            shareLink: ''
-                          }, () => {
-                            loadFolders();
-                          });
-                        }
-                      }} 
-                      className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-white/80 transition-colors"
+                      onClick={generateShareableWorkspace} 
+                      disabled={selectedShareTabs.size === 0 || isGeneratingShare} 
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all flex items-center gap-1.5 ${selectedShareTabs.size === 0 ? 'opacity-50 bg-white/10' : 'bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-500/25'}`}
                     >
-                      Regenerate
+                      <Sparkles className="w-3.5 h-3.5" /> Generate Summary
                     </button>
+                  ) : (
                     <button 
-                      onClick={() => { navigator.clipboard.writeText(shareLink); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }} 
-                      className="flex-1 px-4 py-3 rounded-xl text-sm font-medium text-white transition-all flex items-center justify-center gap-2 bg-green-500/20 text-green-400 border border-green-500/30"
+                      onClick={generatePublicLink} 
+                      disabled={isGeneratingLink} 
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-all flex items-center gap-1.5 ${isGeneratingLink ? 'opacity-50 bg-white/10' : 'bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-500/25 disabled:opacity-50'}`}
                     >
-                      {shareCopied ? <><Check className="w-4 h-4" /> Link Copied!</> : <><Copy className="w-4 h-4" /> Copy Link</>}
+                      {isGeneratingLink ? "Generating..." : <><Share2 className="w-3.5 h-3.5" /> Get Public Link</>}
                     </button>
-                  </>
-                ) : !shareMarkdown ? (
-                  <button 
-                    onClick={generateShareableWorkspace} 
-                    disabled={selectedShareTabs.size === 0 || isGeneratingShare} 
-                    className={`flex-[2] px-4 py-3 rounded-full text-sm font-medium text-white transition-all flex items-center justify-center gap-2 ${selectedShareTabs.size === 0 ? 'opacity-50 bg-white/10' : 'bg-gradient-to-r from-blue-500 to-blue-700 hover:opacity-90 shadow-md shadow-blue-500/20'}`}
-                  >
-                    <Sparkles className="w-4 h-4" /> Generate Summary
-                  </button>
-                ) : (
-                  <button 
-                    onClick={generatePublicLink} 
-                    disabled={isGeneratingLink} 
-                    className={`flex-[2] px-4 py-3 rounded-xl text-sm font-medium text-white transition-all flex items-center justify-center gap-2 ${isGeneratingLink ? 'opacity-50 bg-white/10' : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:opacity-90 shadow-md shadow-blue-500/20 disabled:opacity-50'}`}
-                  >
-                    {isGeneratingLink ? "Generating Public Link..." : <><Share2 className="w-4 h-4" /> Get Shareable Link</>}
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
             </motion.div>
           </div>
@@ -2291,75 +2655,68 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showTimerModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowTimerModal(null)} className="fixed inset-0 bg-black/60" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] p-6 shadow-2xl shadow-black/80">
-              <h3 className="text-lg font-medium text-white mb-6">Schedule {showTimerModal.type === 'folder' ? 'Folder' : 'Tab'}</h3>
-              <div className="space-y-5">
-                <div>
-                  <label className="text-xs uppercase tracking-wider text-white/50 mb-2 block font-medium">Action</label>
-                  <div className="relative">
-                    <button 
-                      type="button" 
-                      onClick={(e) => { e.stopPropagation(); setOpenActionMenu(openActionMenu === 'timer_action' ? null : 'timer_action'); }}
-                      className="w-full flex items-center justify-between bg-[#131313] border border-white/10 text-white rounded-xl px-4 py-2.5 text-sm outline-none hover:border-white/20 transition-all text-left font-medium"
-                    >
-                      <span className="capitalize">{timerAction}</span>
-                      <ChevronDown className={`w-4 h-4 text-white/50 transition-transform duration-200 ${openActionMenu === 'timer_action' ? 'rotate-180' : ''}`} />
-                    </button>
-                    
-                    <AnimatePresence>
-                      {openActionMenu === 'timer_action' && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpenActionMenu(null); }} />
-                          <motion.div 
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.15 }}
-                            className="absolute top-[calc(100%+6px)] left-0 w-full bg-[#161616] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-20 py-1"
-                          >
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setTimerAction('close'); setOpenActionMenu(null); }}
-                              className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/5 flex items-center justify-between ${timerAction === 'close' ? 'text-accent-blue bg-white/[0.02] font-medium' : 'text-white/70'}`}
-                            >
-                              <span>Close</span>
-                              {timerAction === 'close' && <Check className="w-4 h-4 text-accent-blue" />}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setTimerAction('open'); setOpenActionMenu(null); }}
-                              className={`w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-white/5 flex items-center justify-between ${timerAction === 'open' ? 'text-accent-blue bg-white/[0.02] font-medium' : 'text-white/70'}`}
-                            >
-                              <span>Open</span>
-                              {timerAction === 'open' && <Check className="w-4 h-4 text-accent-blue" />}
-                            </button>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowTimerModal(null)} className="fixed inset-0 bg-black/70 backdrop-blur-sm" />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 12 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 12 }} 
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="relative w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90"
+            >
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                    <Clock className="w-3.5 h-3.5" />
                   </div>
+                  <h3 className="text-xs font-semibold text-white tracking-tight">Schedule {showTimerModal.type === 'folder' ? 'Folder' : 'Tab'}</h3>
                 </div>
+                <button onClick={() => setShowTimerModal(null)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {/* Segmented Action Pill */}
+                <div className="grid grid-cols-2 gap-1 bg-black/40 p-0.5 rounded-lg border border-white/5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setTimerAction('close')}
+                    className={`py-1 rounded-md text-xs font-medium transition-all ${timerAction === 'close' ? 'bg-blue-600 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
+                  >
+                    Close {showTimerModal.type === 'folder' ? 'Folder' : 'Tab'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimerAction('open')}
+                    className={`py-1 rounded-md text-xs font-medium transition-all ${timerAction === 'open' ? 'bg-blue-600 text-white shadow-sm' : 'text-white/50 hover:text-white'}`}
+                  >
+                    Open {showTimerModal.type === 'folder' ? 'Folder' : 'Tab'}
+                  </button>
+                </div>
+
                 <div>
-                  <label className="text-xs uppercase tracking-wider text-white/50 mb-2 flex items-center justify-between font-medium">
+                  <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5 flex items-center justify-between font-semibold">
                     <span>Date & Time</span>
-                    <span className="text-[10px] text-white/60 bg-white/10 px-2 py-0.5 rounded-full">{timerAction === 'open' ? openTimerDates.length : closeTimerDates.length} scheduled</span>
-                  </label>
+                    <span className="text-[10px] text-blue-300 bg-blue-500/15 border border-blue-500/20 px-1.5 py-0.2 rounded-full">
+                      {timerAction === 'open' ? openTimerDates.length : closeTimerDates.length} scheduled
+                    </span>
+                  </div>
                   <CustomDateTimePicker 
                     value={timerAction === 'open' ? openTimerDates : closeTimerDates} 
                     onChange={timerAction === 'open' ? setOpenTimerDates : setCloseTimerDates} 
                   />
                 </div>
               </div>
-              <div className="flex items-center w-full gap-2 mt-8">
+
+              <div className="flex items-center w-full gap-2 mt-3.5 pt-2.5 border-t border-white/5">
                 {(openTimerDates.length > 0 || closeTimerDates.length > 0) && (
-                  <button onClick={() => submitTimer(true)} className="px-4 py-2.5 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 rounded-xl text-sm font-medium text-red-400 transition-colors">
-                    Clear All
+                  <button onClick={() => submitTimer(true)} className="px-2 py-1 hover:bg-red-500/10 rounded-lg text-xs font-medium text-red-400 transition-colors">
+                    Clear
                   </button>
                 )}
                 <div className="flex-1" />
-                <button onClick={() => setShowTimerModal(null)} className="px-5 py-2.5 hover:bg-white/5 rounded-xl text-sm font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
-                <button onClick={() => submitTimer(false)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors disabled:opacity-50">Save</button>
+                <button onClick={() => setShowTimerModal(null)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+                <button onClick={() => submitTimer(false)} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25">Save</button>
               </div>
             </motion.div>
           </div>
@@ -2370,17 +2727,48 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showDeleteModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDeleteModal(null)} className="fixed inset-0 bg-black/60" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a] p-8 shadow-2xl shadow-black/80 text-center">
-              <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
-                <Trash2 className="w-8 h-8 text-red-500" />
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setShowDeleteModal(null)} 
+              className="fixed inset-0 bg-black/75 backdrop-blur-md" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 12 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95, y: 12 }} 
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="relative w-full max-w-[360px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-5 shadow-2xl shadow-black/90 text-center"
+            >
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/25 flex items-center justify-center mx-auto mb-3 text-red-400">
+                <Trash2 className="w-5 h-5" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Delete {showDeleteModal.url ? 'Tab' : 'Folder'}?</h3>
-              <p className="text-sm text-white/50 mb-8">This action cannot be undone. {showDeleteModal.url ? 'The tab will be removed from this folder.' : 'All tabs and scheduled timers inside this folder will be lost.'}</p>
+              <h3 className="text-sm font-semibold text-white tracking-tight mb-1">
+                Delete {showDeleteModal.url ? 'Tab' : 'Workspace Folder'}?
+              </h3>
+              <p className="text-xs text-white/50 mb-3.5 leading-normal">
+                {showDeleteModal.url 
+                  ? 'Permanently removes this tab from the folder.' 
+                  : 'Permanently deletes this folder and all saved tabs.'}
+              </p>
               
-              <div className="flex w-full gap-3">
-                <button onClick={() => setShowDeleteModal(null)} className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-medium text-white/80 transition-colors">Cancel</button>
-                <button onClick={confirmDelete} className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 rounded-xl text-sm font-medium text-white transition-colors">Delete</button>
+              <div className="flex items-center justify-center gap-2">
+                <button 
+                  type="button"
+                  onClick={() => setShowDeleteModal(null)} 
+                  className="px-3.5 py-1.5 bg-white/5 hover:bg-white/10 active:bg-white/5 border border-white/10 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={confirmDelete} 
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 active:scale-[0.98] rounded-lg text-xs font-semibold text-white shadow-md shadow-red-500/20 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>{showDeleteModal.url ? 'Remove Tab' : 'Delete Folder'}</span>
+                </button>
               </div>
             </motion.div>
           </div>
@@ -2390,38 +2778,51 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showLockSettingsModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLockSettingsModal(null)} className="fixed inset-0 bg-black/40" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a]/98 p-8 shadow-2xl shadow-black/80">
-              <h3 className="text-xl font-semibold text-white mb-2">Lock Settings</h3>
-              <p className="text-sm text-white/50 mb-6">Secure this folder with a password.</p>
-              <div className="space-y-4 mb-8">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowLockSettingsModal(null)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[350px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90">
+              <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400">
+                    <Lock className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-xs font-semibold text-white tracking-tight">Lock Settings</h3>
+                </div>
+                <button onClick={() => setShowLockSettingsModal(null)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <p className="text-[11px] text-white/50 mb-3">Secure this folder with a password.</p>
+              
+              <div className="space-y-3 mb-4">
                 <div>
-                  <label className="text-xs font-medium text-white/50 mb-1.5 block">Password</label>
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">Password</label>
                   <div className="relative flex items-center">
-                    <input type={showLockPassword ? "text" : "password"} placeholder={showLockSettingsModal.password ? "•••••••• (Leave blank to keep existing)" : "Enter a password"} value={lockPassword} onChange={e => setLockPassword(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-11 py-2.5 text-white outline-none focus:border-indigo-500/50 focus:bg-white/10 focus:ring-1 focus:ring-indigo-500/50 transition-all text-sm" />
+                    <input type={showLockPassword ? "text" : "password"} placeholder={showLockSettingsModal.password ? "•••••••• (Keep existing)" : "Enter password"} value={lockPassword} onChange={e => setLockPassword(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-9 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-colors" />
                     <button 
                       type="button"
                       onClick={() => setShowLockPassword(!showLockPassword)}
-                      className="absolute right-3 text-white/40 hover:text-white transition-colors"
+                      className="absolute right-2.5 text-white/40 hover:text-white transition-colors"
                     >
-                      {showLockPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showLockPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-white/50 mb-1.5 block">Recovery Word (Required to reset if forgotten)</label>
-                  <input type="text" placeholder={showLockSettingsModal.password ? "•••••••• (Leave blank to keep existing)" : "Enter a secret recovery word"} value={lockRecoveryWord} onChange={e => setLockRecoveryWord(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-indigo-500/50 focus:bg-white/10 focus:ring-1 focus:ring-indigo-500/50 transition-all text-sm" />
-                  <p className="text-xs text-amber-400 mt-2 leading-relaxed">
-                    ⚠️ <strong>Important:</strong> Save your recovery word in a safe place. It is required to reset your password if you ever forget it.
+                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">Recovery Word</label>
+                  <input type="text" placeholder={showLockSettingsModal.password ? "•••••••• (Keep existing)" : "Secret recovery word"} value={lockRecoveryWord} onChange={e => setLockRecoveryWord(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-colors" />
+                  <p className="text-[10px] text-amber-400/90 mt-1 leading-normal">
+                    Save your recovery word in a safe place to reset if forgotten.
                   </p>
                 </div>
-                <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/5">
-                  <input type="checkbox" id="autoLock" checked={autoLock} onChange={e => setAutoLock(e.target.checked)} className="w-4 h-4 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-offset-0 focus:ring-0" />
-                  <label htmlFor="autoLock" className="text-sm text-white/80 cursor-pointer select-none">Auto-lock when Dashboard reloads</label>
+                <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                  <input type="checkbox" id="autoLock" checked={autoLock} onChange={e => setAutoLock(e.target.checked)} className="w-3.5 h-3.5 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-0 cursor-pointer" />
+                  <label htmlFor="autoLock" className="text-xs text-white/80 cursor-pointer select-none">Auto-lock on reload</label>
                 </div>
               </div>
-              <div className="flex justify-end gap-2 flex-wrap">
-                <button onClick={() => setShowLockSettingsModal(null)} className="px-5 py-2.5 hover:bg-white/5 rounded-xl text-sm font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+              
+              <div className="flex items-center justify-end gap-1.5 pt-2.5 border-t border-white/[0.08]">
+                <button onClick={() => setShowLockSettingsModal(null)} className="px-3 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
                 {showLockSettingsModal.password && (
                   <button onClick={() => {
                     chrome.runtime.sendMessage({ type: 'UPDATE_FOLDER_LOCK', sessionId: showLockSettingsModal.id, password: '', recoveryWord: '', autoLockEnabled: false }, () => {
@@ -2429,7 +2830,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                       setShowLockSettingsModal(null);
                       showToast('Security Removed', 'Folder password protection has been disabled.', 'info');
                     });
-                  }} className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl text-sm font-semibold transition-all">
+                  }} className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-xs font-medium transition-colors">
                     Remove Lock
                   </button>
                 )}
@@ -2469,7 +2870,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                      setShowLockSettingsModal(null);
                      showToast('Security Saved', 'Folder lock settings updated successfully.', 'success');
                    });
-                }} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-500/20">Save Lock</button>
+                }} className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25">Save</button>
               </div>
             </motion.div>
           </div>
@@ -2480,32 +2881,32 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showDpasteWarning && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDpasteWarning(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-md overflow-hidden rounded-3xl border border-orange-500/30 bg-[#1a1412]/98 p-8 shadow-2xl shadow-black/80">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0">
-                  <Network className="w-6 h-6 text-orange-400" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDpasteWarning(false)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[350px] overflow-hidden rounded-2xl border border-orange-500/30 bg-[#16121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90">
+              <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-orange-500/15 border border-orange-500/25 flex items-center justify-center text-orange-400">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-xs font-semibold text-white tracking-tight">External Service Warning</h3>
                 </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white">External Service Warning</h3>
-                  <p className="text-sm text-orange-400/80 mt-1">Data will be sent to dpaste.com</p>
-                </div>
+                <button onClick={() => setShowDpasteWarning(false)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <div className="space-y-4 text-sm text-white/70 mb-8 p-4 bg-orange-500/5 rounded-xl border border-orange-500/10">
+              
+              <div className="space-y-2 text-xs text-white/70 mb-4 p-3 bg-orange-500/5 rounded-xl border border-orange-500/10 leading-normal">
                 <p>
-                  You are about to generate a public link using an external service (<strong className="text-white">dpaste.com</strong>).
+                  You are about to upload this folder summary publicly via <strong className="text-white">dpaste.com</strong>.
                 </p>
-                <p>
-                  The summarized markdown for this folder will be uploaded and stored publicly. Anyone with the link will be able to read it.
-                </p>
-                <p className="text-orange-300">
-                  <strong>Warning:</strong> Ensure there is no sensitive, private, or confidential information in this summary before proceeding.
+                <p className="text-orange-300 text-[11px]">
+                  Ensure no sensitive or confidential information is included.
                 </p>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => setShowDpasteWarning(false)} className="flex-1 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-semibold transition-colors">Cancel</button>
-                <button onClick={generatePublicLink} disabled={isGeneratingLink} className="flex-1 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-semibold transition-colors shadow-lg shadow-orange-500/20 disabled:opacity-50 flex justify-center items-center">
-                  {isGeneratingLink ? <span className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : 'I Understand, Proceed'}
+              <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-white/[0.08]">
+                <button onClick={() => setShowDpasteWarning(false)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+                <button onClick={generatePublicLink} disabled={isGeneratingLink} className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-orange-500/25 disabled:opacity-50 flex items-center gap-1.5">
+                  {isGeneratingLink ? <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : 'Proceed'}
                 </button>
               </div>
             </motion.div>
@@ -2517,19 +2918,23 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       <AnimatePresence>
         {showUnlockModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => {setShowUnlockModal(null); setIsRecoveryMode(null);}} className="fixed inset-0 bg-black/40" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/10 bg-[#0a0a0a]/98 p-8 shadow-2xl shadow-black/80 text-center">
-              <div className="w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center mx-auto mb-6">
-                <Lock className="w-8 h-8 text-indigo-400" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => {setShowUnlockModal(null); setIsRecoveryMode(null);}} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[320px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90 text-center">
+              <button onClick={() => {setShowUnlockModal(null); setIsRecoveryMode(null);}} className="absolute top-3.5 right-3.5 w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
+              
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center mx-auto mb-2 text-indigo-400">
+                <Lock className="w-4 h-4" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">
+              <h3 className="text-xs font-semibold text-white mb-0.5">
                 {isRecoveryMode === 'verify_word' ? 'Verify Recovery' : isRecoveryMode === 'new_password' ? 'Reset Password' : 'Folder Locked'}
               </h3>
-              <p className="text-sm text-white/50 mb-6">
-                {isRecoveryMode === 'verify_word' ? 'Enter the secret recovery word to reset your password.' : isRecoveryMode === 'new_password' ? 'Enter a new password to reset the lock.' : 'Enter the password to unlock this folder.'}
+              <p className="text-[11px] text-white/50 mb-3 leading-normal">
+                {isRecoveryMode === 'verify_word' ? 'Enter secret recovery word to reset password.' : isRecoveryMode === 'new_password' ? 'Enter a new password.' : 'Enter password to unlock this folder.'}
               </p>
               
-              <div className="space-y-4 mb-6 text-left">
+              <div className="space-y-3 mb-3.5 text-left">
                 {isRecoveryMode === 'verify_word' ? (
                   showUnlockModal.recoveryWord ? (
                     <input 
@@ -2540,12 +2945,12 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                       onKeyDown={e => {
                         if (e.key === 'Enter') handleUnlockSubmit();
                       }}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-indigo-500/50 focus:bg-white/10 focus:ring-1 focus:ring-indigo-500/50 transition-all text-center" 
+                      className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-all text-center" 
                       autoFocus
                     />
                   ) : (
-                    <p className="text-xs text-red-400/80 text-center bg-red-400/10 border border-red-400/20 p-3 rounded-xl leading-relaxed">
-                      No recovery word was set up for this locked folder. Recovery is not possible. Please recall your password or delete and recreate the folder.
+                    <p className="text-[10px] text-red-400/80 text-center bg-red-400/10 border border-red-400/20 p-2 rounded-lg leading-normal">
+                      No recovery word set up. Recovery not possible.
                     </p>
                   )
                 ) : isRecoveryMode === 'new_password' ? (
@@ -2558,15 +2963,15 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                       onKeyDown={e => {
                         if (e.key === 'Enter') handleUnlockSubmit();
                       }}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-11 py-2.5 text-white outline-none focus:border-indigo-500/50 focus:bg-white/10 focus:ring-1 focus:ring-indigo-500/50 transition-all" 
+                      className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-9 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-all" 
                       autoFocus
                     />
                     <button 
                       type="button"
                       onClick={() => setShowRecoveryNewPassword(!showRecoveryNewPassword)}
-                      className="absolute right-3 text-white/40 hover:text-white transition-colors"
+                      className="absolute right-2.5 text-white/40 hover:text-white transition-colors"
                     >
-                      {showRecoveryNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showRecoveryNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 ) : (
@@ -2579,36 +2984,36 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
                       onKeyDown={e => {
                         if (e.key === 'Enter') handleUnlockSubmit();
                       }}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-11 py-2.5 text-white outline-none focus:border-indigo-500/50 focus:bg-white/10 focus:ring-1 focus:ring-indigo-500/50 transition-all" 
+                      className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-9 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-all" 
                       autoFocus
                     />
                     <button 
                       type="button"
                       onClick={() => setShowUnlockPassword(!showUnlockPassword)}
-                      className="absolute right-3 text-white/40 hover:text-white transition-colors"
+                      className="absolute right-2.5 text-white/40 hover:text-white transition-colors"
                     >
-                      {showUnlockPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showUnlockPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 )}
-                {unlockError && <p className="text-xs text-red-400 text-center">{unlockError}</p>}
+                {unlockError && <p className="text-[11px] text-red-400 text-center">{unlockError}</p>}
               </div>
 
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 {(!isRecoveryMode || isRecoveryMode !== 'verify_word' || showUnlockModal.recoveryWord) && (
                   <button 
                     onClick={handleUnlockSubmit} 
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-all shadow-lg shadow-blue-500/20"
+                    className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25"
                   >
                     {isRecoveryMode === 'verify_word' ? 'Verify Word' : isRecoveryMode === 'new_password' ? 'Reset Lock' : 'Unlock'}
                   </button>
                 )}
                 {!isRecoveryMode ? (
                   showUnlockModal.password && (
-                    <button onClick={() => { setIsRecoveryMode('verify_word'); setUnlockPassword(''); setRecoveryWordInput(''); setRecoveryNewPassword(''); setUnlockError(''); }} className="text-xs text-white/40 hover:text-white transition-colors">Forgot Password?</button>
+                    <button onClick={() => { setIsRecoveryMode('verify_word'); setUnlockPassword(''); setRecoveryWordInput(''); setRecoveryNewPassword(''); setUnlockError(''); }} className="text-[11px] text-white/40 hover:text-white transition-colors">Forgot Password?</button>
                   )
                 ) : (
-                  <button onClick={() => { setIsRecoveryMode(null); setUnlockError(''); }} className="text-xs text-indigo-400/80 hover:text-indigo-400 transition-colors">Back to Unlock</button>
+                  <button onClick={() => { setIsRecoveryMode(null); setUnlockError(''); }} className="text-[11px] text-indigo-400/80 hover:text-indigo-400 transition-colors">Back to Unlock</button>
                 )}
               </div>
             </motion.div>
@@ -2681,6 +3086,76 @@ function Tooltip({ children, content, position = 'bottom', align = 'center' }: {
   );
 }
 
+function TimeSegment({ 
+  value, 
+  max, 
+  onChange, 
+  title 
+}: { 
+  value: number; 
+  max: number; 
+  onChange: (val: number) => void; 
+  title: string; 
+}) {
+  const [text, setText] = useState(value.toString().padStart(2, '0'));
+  const isFocused = useRef(false);
+
+  useEffect(() => {
+    if (!isFocused.current) {
+      setText(value.toString().padStart(2, '0'));
+    }
+  }, [value]);
+
+  const commit = (str: string) => {
+    const num = Math.min(max, Math.max(0, parseInt(str, 10) || 0));
+    onChange(num);
+    setText(num.toString().padStart(2, '0'));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = value + 1 > max ? 0 : value + 1;
+      onChange(next);
+      setText(next.toString().padStart(2, '0'));
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const prev = value - 1 < 0 ? max : value - 1;
+      onChange(prev);
+      setText(prev.toString().padStart(2, '0'));
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={text}
+      onFocus={(e) => {
+        isFocused.current = true;
+        e.target.select();
+      }}
+      onBlur={(e) => {
+        isFocused.current = false;
+        commit(e.target.value);
+      }}
+      onKeyDown={handleKeyDown}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/\D/g, '');
+        if (raw.length <= 2) {
+          setText(raw);
+          if (raw.length > 0) {
+            const num = Math.min(max, Math.max(0, parseInt(raw, 10) || 0));
+            onChange(num);
+          }
+        }
+      }}
+      className="w-8 bg-transparent text-white text-center text-xs font-mono font-semibold outline-none tabular-nums p-0 hover:bg-white/10 focus:bg-white/15 rounded transition-colors"
+      title={title}
+    />
+  );
+}
+
 function CustomDateTimePicker({ value, onChange }: { value: Date[], onChange: (dates: Date[]) => void }) {
   const [currentMonth, setCurrentMonth] = useState(value.length > 0 ? value[0] : new Date());
 
@@ -2701,14 +3176,17 @@ function CustomDateTimePicker({ value, onChange }: { value: Date[], onChange: (d
       newDates.splice(existingIdx, 1);
       onChange(newDates);
     } else {
-      const defaultTime = value.length > 0 ? value[value.length - 1] : new Date(new Date().getTime() + 60000);
-      const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day, defaultTime.getHours(), defaultTime.getMinutes(), defaultTime.getSeconds());
+      const futureBase = new Date(Date.now() + 5 * 60 * 1000);
+      const defaultTime = value.length > 0 ? value[value.length - 1] : futureBase;
+      const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day, defaultTime.getHours(), defaultTime.getMinutes(), 0);
+      if (newDate.getTime() <= Date.now() && day === new Date().getDate() && currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear()) {
+        newDate.setHours(futureBase.getHours(), futureBase.getMinutes(), 0);
+      }
       onChange([...value, newDate].sort((a,b) => a.getTime() - b.getTime()));
     }
   };
 
-  const handleIndividualTimeChange = (idx: number, type: 'h'|'m'|'s', val: string) => {
-    const num = parseInt(val) || 0;
+  const handleIndividualTimeChange = (idx: number, type: 'h'|'m'|'s', num: number) => {
     const newDates = [...value];
     const newDate = new Date(newDates[idx]);
     if (type === 'h') newDate.setHours(num);
@@ -2721,20 +3199,20 @@ function CustomDateTimePicker({ value, onChange }: { value: Date[], onChange: (d
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   return (
-    <div className="bg-[#1a1a1a] border border-white/10 rounded-xl p-4 w-full select-none">
+    <div className="bg-black/30 border border-white/5 rounded-xl p-2.5 w-full select-none">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4 text-white">
-        <button onClick={prevMonth} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/50 hover:text-white">&lt;</button>
-        <span className="text-sm font-semibold tracking-wide">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</span>
-        <button onClick={nextMonth} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/50 hover:text-white">&gt;</button>
+      <div className="flex justify-between items-center mb-2 text-white">
+        <button onClick={prevMonth} className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded-md transition-colors text-white/50 hover:text-white text-xs">&lt;</button>
+        <span className="text-xs font-semibold tracking-tight">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</span>
+        <button onClick={nextMonth} className="w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded-md transition-colors text-white/50 hover:text-white text-xs">&gt;</button>
       </div>
 
       {/* Days Grid */}
-      <div className="grid grid-cols-7 gap-1 text-center text-[10px] uppercase tracking-widest text-white/30 mb-2 font-medium">
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] uppercase tracking-wider text-white/30 mb-1 font-semibold">
         {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => <div key={d}>{d}</div>)}
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs">
-        {blanks.map(b => <div key={`b-${b}`} className="p-2" />)}
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[11px]">
+        {blanks.map(b => <div key={`b-${b}`} className="py-1" />)}
         {days.map(d => {
           const isSelected = value.some(v => v.getDate() === d && v.getMonth() === currentMonth.getMonth() && v.getFullYear() === currentMonth.getFullYear());
           const isToday = !isSelected && d === new Date().getDate() && currentMonth.getMonth() === new Date().getMonth() && currentMonth.getFullYear() === new Date().getFullYear();
@@ -2743,7 +3221,7 @@ function CustomDateTimePicker({ value, onChange }: { value: Date[], onChange: (d
             <button 
               key={d} 
               onClick={() => handleDayClick(d)}
-              className={`p-2 rounded-lg transition-all ${isSelected ? 'bg-white text-black font-semibold shadow-sm' : isToday ? 'bg-white/5 text-white font-medium' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+              className={`py-1 rounded-md transition-all text-[11px] ${isSelected ? 'bg-blue-600 text-white font-semibold shadow-sm' : isToday ? 'bg-white/10 text-white font-semibold' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
             >
               {d}
             </button>
@@ -2753,17 +3231,46 @@ function CustomDateTimePicker({ value, onChange }: { value: Date[], onChange: (d
 
       {/* Selected Dates Time Pickers */}
       {value.length > 0 && (
-        <div className="mt-5 pt-5 border-t border-white/[0.04] flex flex-col gap-3 max-h-48 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
-          <div className="text-xs text-white/30 uppercase tracking-widest font-medium mb-1">Selected Dates & Times</div>
+        <div className="mt-2.5 pt-2.5 border-t border-white/[0.04] flex flex-col gap-1.5 max-h-36 overflow-y-auto pr-1 scrollbar-hide">
+          <div className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">Times</div>
           {value.map((date, idx) => (
-            <div key={idx} className="flex justify-between items-center gap-2 bg-[#222222] p-2.5 rounded-xl border border-white/5">
-              <span className="text-xs font-medium text-white/80">{monthNames[date.getMonth()]} {date.getDate()}, {date.getFullYear()}</span>
-              <div className="flex items-center gap-0.5 bg-[#111111] p-1 rounded-lg border border-white/5 focus-within:border-white/20 transition-colors">
-                <input type="number" min="0" max="23" value={date.getHours().toString().padStart(2, '0')} onChange={e => handleIndividualTimeChange(idx, 'h', e.target.value)} className="w-8 bg-transparent text-white text-center py-0.5 text-xs font-medium outline-none hover:bg-white/5 focus:bg-white/10 rounded transition-colors" />
-                <span className="text-white/30 font-medium pb-0.5">:</span>
-                <input type="number" min="0" max="59" value={date.getMinutes().toString().padStart(2, '0')} onChange={e => handleIndividualTimeChange(idx, 'm', e.target.value)} className="w-8 bg-transparent text-white text-center py-0.5 text-xs font-medium outline-none hover:bg-white/5 focus:bg-white/10 rounded transition-colors" />
-                <span className="text-white/30 font-medium pb-0.5">:</span>
-                <input type="number" min="0" max="59" value={date.getSeconds().toString().padStart(2, '0')} onChange={e => handleIndividualTimeChange(idx, 's', e.target.value)} className="w-8 bg-transparent text-white text-center py-0.5 text-xs font-medium outline-none hover:bg-white/5 focus:bg-white/10 rounded transition-colors" />
+            <div key={idx} className="flex justify-between items-center gap-2 bg-white/[0.03] px-2.5 py-1.5 rounded-lg border border-white/5">
+              <span className="text-xs font-medium text-white/90 shrink-0">{monthNames[date.getMonth()]} {date.getDate()}</span>
+              <div className="flex items-center gap-1.5">
+                <div className="flex items-center bg-black/60 px-1.5 py-0.5 rounded-md border border-white/10 focus-within:border-blue-500/50">
+                  <TimeSegment
+                    value={date.getHours()}
+                    max={23}
+                    onChange={(h) => handleIndividualTimeChange(idx, 'h', h)}
+                    title="Hour (0-23)"
+                  />
+                  <span className="text-white/40 text-xs font-mono select-none px-0.5">:</span>
+                  <TimeSegment
+                    value={date.getMinutes()}
+                    max={59}
+                    onChange={(m) => handleIndividualTimeChange(idx, 'm', m)}
+                    title="Minute (0-59)"
+                  />
+                  <span className="text-white/40 text-xs font-mono select-none px-0.5">:</span>
+                  <TimeSegment
+                    value={date.getSeconds()}
+                    max={59}
+                    onChange={(s) => handleIndividualTimeChange(idx, 's', s)}
+                    title="Second (0-59)"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newDates = [...value];
+                    newDates.splice(idx, 1);
+                    onChange(newDates);
+                  }}
+                  className="w-5 h-5 flex items-center justify-center text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                  title="Remove time"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </div>
             </div>
           ))}
@@ -2773,8 +3280,10 @@ function CustomDateTimePicker({ value, onChange }: { value: Date[], onChange: (d
   )
 }
 
+
 const MarkdownPreview = ({ content }: { content: string }) => {
-  const lines = content.split('\n');
+  const sanitizedContent = sanitizeStreamChunk(content || '');
+  const lines = sanitizedContent.split('\n');
   const rendered: React.ReactNode[] = [];
   
   let currentTableHeaders: string[] = [];
@@ -2785,17 +3294,21 @@ const MarkdownPreview = ({ content }: { content: string }) => {
   let isInsideList = false;
 
   const renderInline = (text: string): React.ReactNode[] => {
-    const regex = /(\*\*.*?\*\*|\[.*?\]\(.*?\))/g;
+    if (!text || !text.trim()) {
+      return [<span key="empty" className="text-white/20 select-none">—</span>];
+    }
+    const regex = /(\*\*.*?\*\*|\[.*?\]\(.*?\)|(?:https?:\/\/[^\s<)]+))/g;
     const parts = text.split(regex);
     return parts.map((part, idx) => {
+      if (!part) return null;
       if (part.startsWith('**') && part.endsWith('**')) {
         return <strong key={idx} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
         const closeBraceIdx = part.indexOf(']');
         if (closeBraceIdx !== -1) {
-          const label = part.slice(1, closeBraceIdx);
-          const url = part.slice(closeBraceIdx + 2, -1);
+          const label = part.slice(1, closeBraceIdx).trim();
+          const url = part.slice(closeBraceIdx + 2, -1).trim();
           const safeUrl = sanitizeUrl(url);
           return (
             <a 
@@ -2805,10 +3318,24 @@ const MarkdownPreview = ({ content }: { content: string }) => {
               rel="noopener noreferrer" 
               className="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-medium break-all"
             >
-              {label}
+              {label || safeUrl}
             </a>
           );
         }
+      }
+      if (part.startsWith('http://') || part.startsWith('https://')) {
+        const safeUrl = sanitizeUrl(part);
+        return (
+          <a 
+            key={idx} 
+            href={safeUrl} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-medium break-all"
+          >
+            {part}
+          </a>
+        );
       }
       return part;
     });
@@ -2817,13 +3344,13 @@ const MarkdownPreview = ({ content }: { content: string }) => {
   const flushTable = (key: number) => {
     if (currentTableHeaders.length > 0 || currentTableRows.length > 0) {
       rendered.push(
-        <div key={`table-${key}`} className="overflow-x-auto my-4 rounded-xl border border-white/10 bg-white/[0.01]">
-          <table className="w-full text-left border-collapse text-sm">
+        <div key={`table-${key}`} className="overflow-x-auto my-3 rounded-xl border border-white/10 bg-white/[0.02]">
+          <table className="w-full text-left border-collapse text-xs">
             {currentTableHeaders.length > 0 && (
               <thead>
                 <tr className="bg-white/5 border-b border-white/10">
                   {currentTableHeaders.map((h, i) => (
-                    <th key={i} className="p-3 font-semibold text-white whitespace-nowrap">
+                    <th key={i} className="p-2.5 font-semibold text-white whitespace-nowrap min-w-[90px]">
                       {renderInline(h)}
                     </th>
                   ))}
@@ -2834,7 +3361,7 @@ const MarkdownPreview = ({ content }: { content: string }) => {
               {currentTableRows.map((row, ri) => (
                 <tr key={ri} className="border-b border-white/5 hover:bg-white/[0.02] last:border-0">
                   {row.map((cell, ci) => (
-                    <td key={ci} className="p-3 text-white/80 max-w-[300px] break-words">
+                    <td key={ci} className="p-2.5 text-white/80 min-w-[90px] max-w-[280px] break-words">
                       {renderInline(cell)}
                     </td>
                   ))}
@@ -3226,9 +3753,77 @@ interface MapNode {
   isLocked?: boolean;
 }
 
+const MAP_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+
+/**
+ * Calculates tab orbital positions using dynamic concentric rings.
+ * Scales effortlessly from 1 tab up to 50+ tabs without node crowding.
+ */
+function getTabOrbitPosition(fx: number, fy: number, index: number, totalTabs: number): { x: number; y: number } {
+  if (totalTabs <= 1) {
+    return { x: fx + 60, y: fy };
+  }
+
+  // 1 to 6 tabs: Single comfortable orbital ring
+  if (totalTabs <= 6) {
+    const radius = Math.max(56, 46 + totalTabs * 2.5);
+    const angle = (2 * Math.PI * index) / totalTabs;
+    return {
+      x: fx + radius * Math.cos(angle),
+      y: fy + radius * Math.sin(angle)
+    };
+  }
+
+  // 7 to 15 tabs: 2 concentric planetary rings
+  if (totalTabs <= 15) {
+    const innerCount = Math.min(5, Math.floor(totalTabs * 0.4));
+    const outerCount = totalTabs - innerCount;
+
+    if (index < innerCount) {
+      const radius = 52;
+      const angle = (2 * Math.PI * index) / innerCount;
+      return {
+        x: fx + radius * Math.cos(angle),
+        y: fy + radius * Math.sin(angle)
+      };
+    } else {
+      const outerIndex = index - innerCount;
+      const radius = 92;
+      // Stagger angle by half-step so outer tabs don't overlap inner tabs
+      const angle = (2 * Math.PI * outerIndex) / outerCount + (Math.PI / outerCount);
+      return {
+        x: fx + radius * Math.cos(angle),
+        y: fy + radius * Math.sin(angle)
+      };
+    }
+  }
+
+  // 16+ tabs: 3 concentric planetary rings (handles 20-50+ tabs without crowding)
+  const ring1Count = 5;
+  const ring2Count = Math.min(10, Math.floor((totalTabs - ring1Count) * 0.45));
+  const ring3Count = totalTabs - ring1Count - ring2Count;
+
+  if (index < ring1Count) {
+    const radius = 50;
+    const angle = (2 * Math.PI * index) / ring1Count;
+    return { x: fx + radius * Math.cos(angle), y: fy + radius * Math.sin(angle) };
+  } else if (index < ring1Count + ring2Count) {
+    const idx2 = index - ring1Count;
+    const radius = 90;
+    const angle = (2 * Math.PI * idx2) / ring2Count + (Math.PI / ring2Count);
+    return { x: fx + radius * Math.cos(angle), y: fy + radius * Math.sin(angle) };
+  } else {
+    const idx3 = index - ring1Count - ring2Count;
+    const radius = 130;
+    const angle = (2 * Math.PI * idx3) / ring3Count + (Math.PI / (2 * ring3Count));
+    return { x: fx + radius * Math.cos(angle), y: fy + radius * Math.sin(angle) };
+  }
+}
+
 function WorkspaceMapView({ showToast }: { showToast: (title: string, description?: string, type?: 'success' | 'error' | 'info') => void }) {
   const [nodes, setNodes] = useState<MapNode[]>([]);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<MapNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [similarityMode, setSimilarityMode] = useState(true);
@@ -3237,7 +3832,6 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   const [loading, setLoading] = useState(true);
 
   // Sidebar Filter & Pagination states
-  const [sidebarSearch, setSidebarSearch] = useState('');
   const [sidebarPage, setSidebarPage] = useState(1);
 
   // Zoom & Pan states
@@ -3263,10 +3857,12 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   const isLayoutFrozenRef = useRef(isLayoutFrozen);
   const savedPositionsRef = useRef(savedPositions);
   const expandedMapFoldersRef = useRef(expandedMapFolders);
+  const visibleFolderIdsRef = useRef(visibleFolderIds);
 
   useEffect(() => { isLayoutFrozenRef.current = isLayoutFrozen; }, [isLayoutFrozen]);
   useEffect(() => { savedPositionsRef.current = savedPositions; }, [savedPositions]);
   useEffect(() => { expandedMapFoldersRef.current = expandedMapFolders; }, [expandedMapFolders]);
+  useEffect(() => { visibleFolderIdsRef.current = visibleFolderIds; }, [visibleFolderIds]);
 
   const saveCurrentPositions = async (currentNodes: MapNode[]) => {
     const positions: Record<string, {x: number, y: number}> = {};
@@ -3313,7 +3909,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   const handleFolderDoubleClick = (folderId: string) => {
     const folderNode = nodes.find(n => n.id === folderId);
     if (folderNode?.isLocked) {
-      showToast('Folder Locked', 'This folder is locked. Please unlock it in the Folders tab first.', 'error');
+      showToast('Folder Protected', 'This folder is password locked. Please unlock it in Folders view.', 'error');
       return;
     }
 
@@ -3340,12 +3936,10 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       
       // Check if there is already a saved position (in case layout is frozen)
       const savedPos = savedPositionsRef.current[tabId];
+      const defaultPos = getTabOrbitPosition(folderNode.x, folderNode.y, j, tabCount);
       
-      const tabRadius = 60;
-      const tabAngle = tabCount > 1 ? (2 * Math.PI * j) / tabCount : 0;
-      
-      const tx = savedPos ? savedPos.x : folderNode.x + tabRadius * Math.cos(tabAngle);
-      const ty = savedPos ? savedPos.y : folderNode.y + tabRadius * Math.sin(tabAngle);
+      const tx = savedPos ? savedPos.x : defaultPos.x;
+      const ty = savedPos ? savedPos.y : defaultPos.y;
 
       newTabNodes.push({
         id: tabId,
@@ -3378,7 +3972,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     const centerY = 280;
     const radius = Math.max(170, 80 + folderCount * 9);
     
-    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+    const colors = MAP_COLORS;
 
     activeFolders.forEach((folder, i) => {
       const color = colors[i % colors.length];
@@ -3408,14 +4002,10 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       if (isExpanded) {
         tabs.forEach((tab: { title: string; url: string; favIconUrl?: string }, j: number) => {
           const tabId = `${folder.id}-tab-${j}`;
-          const tabRadius = 60;
-          const tabAngle = tabCount > 1 ? (2 * Math.PI * j) / tabCount : 0;
+          const defaultPos = getTabOrbitPosition(fx, fy, j, tabCount);
           
-          const defaultTx = fx + tabRadius * Math.cos(tabAngle);
-          const defaultTy = fy + tabRadius * Math.sin(tabAngle);
-          
-          const tx = (frozen && positions[tabId]) ? positions[tabId].x : defaultTx;
-          const ty = (frozen && positions[tabId]) ? positions[tabId].y : defaultTy;
+          const tx = (frozen && positions[tabId]) ? positions[tabId].x : defaultPos.x;
+          const ty = (frozen && positions[tabId]) ? positions[tabId].y : defaultPos.y;
 
           initialNodes.push({
             id: tabId,
@@ -3435,31 +4025,54 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     setNodes(initialNodes);
   };
 
-  // Load folders on mount
+  // Load folders on mount and listen for updates
   useEffect(() => {
-    chrome.runtime.sendMessage({ type: 'GET_SESSIONS' }, async (res) => {
-      setLoading(false);
-      if (res && Array.isArray(res)) {
-        const typedRes = res as FolderSession[];
-        setFoldersList(typedRes);
-        const folderIds = typedRes.map((f) => f.id);
-        setVisibleFolderIds(new Set(folderIds));
-        
-        try {
-          const db = await import('@/storage/db');
-          const isFrozenSetting = await db.getSetting<boolean>('map_frozen', false);
-          const positionsSetting = await db.getSetting<Record<string, {x: number, y: number}>>('map_positions', {});
+    const loadMapData = () => {
+      chrome.runtime.sendMessage({ type: 'GET_SESSIONS' }, async (res) => {
+        setLoading(false);
+        if (res && Array.isArray(res)) {
+          const typedRes = res as FolderSession[];
+          setFoldersList(typedRes);
+          const allIds = typedRes.map((f) => f.id);
           
-          setIsLayoutFrozen(isFrozenSetting);
-          setSavedPositions(positionsSetting);
+          setVisibleFolderIds(prev => {
+            if (prev.size === 0) return new Set(allIds);
+            // Retain active folders that still exist
+            const updated = new Set<string>();
+            prev.forEach(id => {
+              if (allIds.includes(id)) updated.add(id);
+            });
+            return updated.size > 0 ? updated : new Set(allIds);
+          });
           
-          initializeLayout(typedRes, folderIds, isFrozenSetting, positionsSetting, new Set());
-        } catch (e) {
-          console.error("Error loading map settings:", e);
-          initializeLayout(typedRes, folderIds, false, {}, new Set());
+          try {
+            const db = await import('@/storage/db');
+            const isFrozenSetting = await db.getSetting<boolean>('map_frozen', false);
+            const positionsSetting = await db.getSetting<Record<string, {x: number, y: number}>>('map_positions', {});
+            
+            setIsLayoutFrozen(isFrozenSetting);
+            setSavedPositions(positionsSetting);
+            
+            const activeIds = visibleFolderIdsRef.current.size > 0 ? Array.from(visibleFolderIdsRef.current) : allIds;
+            initializeLayout(typedRes, activeIds, isFrozenSetting, positionsSetting, expandedMapFoldersRef.current);
+          } catch (e) {
+            console.error("Error loading map settings:", e);
+            initializeLayout(typedRes, allIds, false, {}, expandedMapFoldersRef.current);
+          }
         }
+      });
+    };
+
+    loadMapData();
+    const handleMsg = (msg: any) => {
+      if (msg?.type === 'REFRESH_FOLDERS') {
+        loadMapData();
       }
-    });
+    };
+    chrome.runtime.onMessage.addListener(handleMsg);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMsg);
+    };
   }, []);
 
   // Update layout when visibility toggled
@@ -3512,9 +4125,12 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   const handleMouseMove = (e: React.MouseEvent) => {
     if (draggedNodeId) {
       if (isLayoutFrozen) {
-        setDraggedNodeId(null);
-        showToast('Layout Locked', 'Unlock the layout at the top to rearrange nodes.', 'info');
-        return;
+        const dNode = nodes.find(n => n.id === draggedNodeId);
+        if (!dNode || dNode.type !== 'tab') {
+          setDraggedNodeId(null);
+          showToast('Layout Locked', 'Unlock layout at top right to reposition folders.', 'info');
+          return;
+        }
       }
       draggedRef.current = true;
       const rect = e.currentTarget.getBoundingClientRect();
@@ -3524,6 +4140,18 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       const x = (clickX - pan.x) / zoom;
       const y = (clickY - pan.y) / zoom;
       
+      const dNode = nodes.find(n => n.id === draggedNodeId);
+      if (dNode && dNode.type === 'tab' && dNode.parentId) {
+        const target = nodes.find(n => 
+          n.type === 'folder' && 
+          n.id !== dNode.parentId &&
+          Math.sqrt(Math.pow(n.x - x, 2) + Math.pow(n.y - y, 2)) < Math.max(70, (n.size || 18) + 45)
+        );
+        setDropTargetFolderId(target ? target.id : null);
+      } else {
+        setDropTargetFolderId(null);
+      }
+
       setNodes(prev => prev.map(n => {
         if (n.id === draggedNodeId) {
           return { ...n, x, y };
@@ -3539,20 +4167,22 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   };
 
   const handleMouseUp = async () => {
+    const currentTargetId = dropTargetFolderId;
+    setDropTargetFolderId(null);
+
     if (draggedNodeId) {
-      await saveCurrentPositions(nodes);
       const draggedNode = nodes.find(n => n.id === draggedNodeId);
       if (draggedNode && draggedNode.type === 'tab' && draggedNode.parentId) {
         // Check if dropped near any folder node (excluding its own parent)
         const targetFolder = nodes.find(n => 
           n.type === 'folder' && 
           n.id !== draggedNode.parentId &&
-          Math.sqrt(Math.pow(n.x - draggedNode.x, 2) + Math.pow(n.y - draggedNode.y, 2)) < (n.size || 18) + 20
+          (n.id === currentTargetId || Math.sqrt(Math.pow(n.x - draggedNode.x, 2) + Math.pow(n.y - draggedNode.y, 2)) < Math.max(70, (n.size || 18) + 45))
         );
 
         if (targetFolder) {
           if (targetFolder.isLocked) {
-            showToast("Folder Locked", `Cannot move tab. "${targetFolder.label}" is locked.`, "error");
+            showToast("Folder Protected", `Cannot move tab. "${targetFolder.label}" is password locked.`, "error");
             setDraggedNodeId(null);
             setIsPanning(false);
             initializeLayout(foldersList, Array.from(visibleFolderIds));
@@ -3566,35 +4196,60 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
           const destFolderName = targetFolder.label;
 
           try {
-            await new Promise((resolve, reject) => {
+            const res = await new Promise<any>((resolve, reject) => {
               chrome.runtime.sendMessage({
                 type: 'MOVE_TAB',
                 sourceSessionId: sourceFolderId,
                 targetSessionId: destFolderId,
                 url: tabUrl
-              }, (res) => {
-                if (res && res.error) reject(new Error(res.error));
-                else resolve(res);
+              }, (response) => {
+                if (response && response.error) reject(new Error(response.error));
+                else resolve(response);
               });
             });
 
-            showToast("Tab Moved", `Successfully moved "${tabTitle}" to folder "${destFolderName}".`, "success");
+            if (res && res.error) {
+              showToast("Action Failed", res.error, "error");
+              initializeLayout(foldersList, Array.from(visibleFolderIds));
+            } else {
+              showToast("Tab Moved", `Successfully moved "${tabTitle}" to "${destFolderName}".`, "success");
 
-            // Reload folders list and initialize layout
-            chrome.runtime.sendMessage({ type: 'GET_SESSIONS' }, (res) => {
-              if (res && Array.isArray(res)) {
-                const typedRes = res as FolderSession[];
-                setFoldersList(typedRes);
-                const activeIds = Array.from(visibleFolderIds);
-                initializeLayout(typedRes, activeIds);
-              }
-            });
-          } catch (err) {
+              // Clear stale tab positions for source & dest from savedPositions so they re-orbit cleanly
+              const nextPositions = { ...savedPositionsRef.current };
+              Object.keys(nextPositions).forEach(k => {
+                if (k.startsWith(`${sourceFolderId}-tab-`) || k.startsWith(`${destFolderId}-tab-`)) {
+                  delete nextPositions[k];
+                }
+              });
+              setSavedPositions(nextPositions);
+              savedPositionsRef.current = nextPositions;
+
+              // Reload folders list and initialize layout with both source and destination folders expanded
+              chrome.runtime.sendMessage({ type: 'GET_SESSIONS' }, (response) => {
+                if (response && Array.isArray(response)) {
+                  const typedRes = response as FolderSession[];
+                  setFoldersList(typedRes);
+                  const activeIds = Array.from(visibleFolderIds);
+                  const nextExpanded = new Set(expandedMapFoldersRef.current);
+                  nextExpanded.add(sourceFolderId);
+                  nextExpanded.add(destFolderId);
+                  setExpandedMapFolders(nextExpanded);
+                  initializeLayout(typedRes, activeIds, isLayoutFrozenRef.current, nextPositions, nextExpanded);
+                }
+              });
+            }
+          } catch (err: any) {
             console.error("Failed to move tab:", err);
-            showToast("Error", "Could not move tab to folder.", "error");
+            showToast("Action Failed", err?.message || "Could not move tab to the destination folder.", "error");
+            initializeLayout(foldersList, Array.from(visibleFolderIds));
           }
+
+          setDraggedNodeId(null);
+          setIsPanning(false);
+          return;
         }
       }
+      await saveCurrentPositions(nodes);
     }
 
     setDraggedNodeId(null);
@@ -3672,7 +4327,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     if (url) {
       const safeUrl = sanitizeUrl(url);
       if (!isValidUrl(safeUrl)) {
-        showToast('Invalid URL', 'This URL is not allowed for security reasons.', 'error');
+        showToast('Restricted URL', 'This system URL cannot be opened for browser security reasons.', 'error');
         return;
       }
       chrome.tabs.create({ url: safeUrl, active: false }).catch(console.error);
@@ -3737,16 +4392,17 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   }
 
   return (
-    <div className="flex h-[calc(100vh-140px)] gap-6 overflow-hidden">
+    <div className="flex h-[calc(100vh-140px)] gap-8 overflow-hidden">
       {/* Sidebar Controls */}
-      <div className="w-[260px] bg-[#0c0c0e]/90 border border-white/5 rounded-3xl p-6 flex flex-col gap-6 shrink-0 backdrop-blur-xl shadow-xl shadow-black/40">
+      <div className="w-[280px] flex flex-col gap-5 shrink-0 pr-6 border-r border-white/[0.06]">
         <div>
-          <h3 className="text-md font-semibold text-white mb-1.5 flex items-center gap-2">
+          <h3 className="text-base font-semibold text-white mb-1.5 flex items-center gap-2">
             <Network className="w-4 h-4 text-blue-400" /> Workspace Map
           </h3>
-          <p className="text-xs text-white/40 leading-relaxed">
-            Drag nodes to organize them. Double-click tabs to open, or hover for details.
-          </p>
+          <div className="text-[11.5px] text-white/40 leading-relaxed select-none">
+            <p>Drag nodes to organize workspaces.</p>
+            <p className="mt-0.5">Double&#8209;click to open, hover for details.</p>
+          </div>
         </div>
 
         {/* Search */}
@@ -3756,13 +4412,28 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
             type="text"
             placeholder="Search tabs or folders..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white outline-none focus:border-blue-500/50 transition-colors"
+            onChange={e => {
+              setSearchQuery(e.target.value);
+              setSidebarPage(1);
+            }}
+            className="w-full bg-white/[0.04] border border-white/10 rounded-xl pl-10 pr-9 py-2.5 text-xs text-white placeholder-white/30 outline-none focus:border-blue-500/50 transition-colors"
           />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSidebarPage(1);
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded text-white/40 hover:text-white transition-colors"
+              title="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Toggle Domain Similarity Links */}
-        <div className="flex items-center justify-between p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+        <div className="flex items-center justify-between py-2 border-y border-white/[0.05]">
           <div className="flex flex-col gap-0.5">
             <span className="text-xs font-semibold text-white/90">Domain Similarity Links</span>
             <span className="text-[10px] text-white/40">Connect tabs on same domain</span>
@@ -3781,19 +4452,24 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
         {/* Folder Selectors */}
         <div className="flex-1 flex flex-col gap-3 min-h-0">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-wider text-white/30 font-semibold">Visible Workspaces</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-white/40 font-semibold">Visible Workspaces</span>
+              <span className="text-[10px] text-white/30 font-medium">({foldersList.length})</span>
+            </div>
             {foldersList.length > 1 && (
-              <div className="flex items-center gap-1.5 select-none">
+              <div className="flex items-center gap-1.5 select-none text-[10px]">
                 <button 
                   onClick={handleShowAllFolders}
-                  className="text-[10px] text-blue-400 hover:text-blue-300 font-medium transition-colors cursor-pointer"
+                  className="text-blue-400 hover:text-blue-300 font-medium transition-colors cursor-pointer"
+                  title="Show all workspaces on map"
                 >
                   All
                 </button>
-                <span className="text-[10px] text-white/20">/</span>
+                <span className="text-white/20">/</span>
                 <button 
                   onClick={handleHideAllFolders}
-                  className="text-[10px] text-white/40 hover:text-white/60 font-medium transition-colors cursor-pointer"
+                  className="text-white/40 hover:text-white/60 font-medium transition-colors cursor-pointer"
+                  title="Hide all workspaces from map"
                 >
                   None
                 </button>
@@ -3801,78 +4477,89 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
             )}
           </div>
 
-          {/* Sidebar Local Search */}
-          {foldersList.length > 5 && (
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-              <input
-                type="text"
-                placeholder="Filter list..."
-                value={sidebarSearch}
-                onChange={e => {
-                  setSidebarSearch(e.target.value);
-                  setSidebarPage(1);
-                }}
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white outline-none focus:border-blue-500/50 transition-colors"
-              />
-            </div>
-          )}
-
           {/* Paginated & Filtered Folder List */}
           {(() => {
+            const queryClean = searchQuery.trim().toLowerCase();
             const filtered = foldersList.filter(f => 
-              f.name.toLowerCase().includes(sidebarSearch.trim().toLowerCase())
+              !queryClean || f.name.toLowerCase().includes(queryClean) || (f.tabs || []).some((t: any) => (t.title || '').toLowerCase().includes(queryClean) || (t.url || '').toLowerCase().includes(queryClean))
             );
-            const itemsPerPage = 10;
-            const totalSidebarPages = Math.ceil(filtered.length / itemsPerPage) || 1;
-            const activeSidebarPage = Math.max(1, Math.min(sidebarPage, totalSidebarPages));
+            const itemsPerPage = 6;
+            const totalSidebarPages = Math.ceil(filtered.length / itemsPerPage);
+            const activeSidebarPage = Math.max(1, Math.min(sidebarPage, totalSidebarPages || 1));
             const paginated = filtered.slice((activeSidebarPage - 1) * itemsPerPage, activeSidebarPage * itemsPerPage);
 
             return (
-              <div className="flex-1 flex flex-col gap-2 min-h-0">
-                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-1">
+              <div className="flex-1 flex flex-col gap-2 min-h-0 justify-between">
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 space-y-1">
                   {paginated.length === 0 ? (
-                    <div className="text-[10px] text-white/30 text-center py-4">No matching workspaces</div>
+                    <div className="text-[11px] text-white/30 text-center py-6">No matching workspaces</div>
                   ) : (
                     paginated.map(folder => {
                       const isVisible = visibleFolderIds.has(folder.id);
+                      const folderColor = MAP_COLORS[foldersList.indexOf(folder) % MAP_COLORS.length] || '#3b82f6';
                       return (
                         <label 
                           key={folder.id} 
-                          className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer border border-transparent transition-colors"
+                          className={`flex items-center justify-between p-2 rounded-xl cursor-pointer border transition-all ${
+                            isVisible 
+                              ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.07]' 
+                              : 'bg-transparent border-transparent opacity-60 hover:opacity-100 hover:bg-white/[0.02]'
+                          }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isVisible}
-                            onChange={() => handleToggleFolder(folder.id)}
-                            className="w-3.5 h-3.5 rounded bg-black/40 border-white/10 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                          />
-                          <span className="text-xs text-white/80 font-medium truncate select-none">{folder.name}</span>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isVisible}
+                              onChange={() => handleToggleFolder(folder.id)}
+                              className="w-3.5 h-3.5 rounded bg-black/40 border-white/20 text-blue-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                            />
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: folderColor }} />
+                            <span className="text-xs text-white/80 font-medium truncate select-none" title={folder.name}>
+                              {folder.name}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-white/40 bg-white/5 px-1.5 py-0.5 rounded shrink-0 ml-1">
+                            {folder.tabs?.length || 0} tabs
+                          </span>
                         </label>
                       );
                     })
                   )}
                 </div>
 
-                {/* Sidebar Pagination Footer */}
+                {/* Sidebar Pagination Footer - Only shown when workspaces span across multiple pages */}
                 {totalSidebarPages > 1 && (
-                  <div className="flex items-center justify-between border-t border-white/[0.04] pt-2 mt-1 select-none shrink-0">
+                  <div className="flex items-center justify-between border-t border-white/[0.06] pt-2.5 mt-1 select-none shrink-0 text-xs">
                     <button
-                      disabled={activeSidebarPage === 1}
-                      onClick={() => setSidebarPage(activeSidebarPage - 1)}
-                      className="p-1 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg text-white/60 hover:text-white transition-colors cursor-pointer disabled:cursor-not-allowed"
+                      disabled={activeSidebarPage <= 1}
+                      onClick={() => setSidebarPage(p => Math.max(1, p - 1))}
+                      className="px-2.5 py-1 bg-white/5 hover:bg-white/10 disabled:opacity-20 disabled:hover:bg-white/5 rounded-lg text-white/70 hover:text-white transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center gap-1 text-[11px] font-medium shrink-0"
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeft className="w-3.5 h-3.5" /> Prev
                     </button>
-                    <span className="text-[10px] text-white/40 font-medium">
-                      Page {activeSidebarPage} of {totalSidebarPages}
-                    </span>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalSidebarPages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          onClick={() => setSidebarPage(page)}
+                          className={`w-6 h-6 rounded-md text-[11px] font-semibold transition-all flex items-center justify-center cursor-pointer ${
+                            activeSidebarPage === page
+                              ? 'bg-blue-500 text-white shadow-sm'
+                              : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+
                     <button
-                      disabled={activeSidebarPage === totalSidebarPages}
-                      onClick={() => setSidebarPage(activeSidebarPage + 1)}
-                      className="p-1 hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg text-white/60 hover:text-white transition-colors cursor-pointer disabled:cursor-not-allowed"
+                      disabled={activeSidebarPage >= totalSidebarPages}
+                      onClick={() => setSidebarPage(p => Math.min(totalSidebarPages, p + 1))}
+                      className="px-2.5 py-1 bg-white/5 hover:bg-white/10 disabled:opacity-20 disabled:hover:bg-white/5 rounded-lg text-white/70 hover:text-white transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center gap-1 text-[11px] font-medium shrink-0"
                     >
-                      <ChevronRight className="w-4 h-4" />
+                      Next <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 )}
@@ -3883,7 +4570,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       </div>
 
       {/* Interactive Map Visualizer */}
-      <div className="flex-1 bg-[#07050f]/80 border border-white/5 rounded-3xl relative overflow-hidden shadow-inner backdrop-blur-md">
+      <div className="flex-1 relative overflow-hidden">
         {/* Style block for moving dash animations and custom scrollbar overrides */}
         <style>
           {`
@@ -4017,6 +4704,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
 
               if (node.type === 'folder') {
                 const folderSize = node.size || 18;
+                const isDropTarget = dropTargetFolderId === node.id;
                 return (
                   <g 
                     key={node.id} 
@@ -4029,14 +4717,38 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                     onMouseEnter={() => setHoveredNode(node)}
                     onMouseLeave={() => setHoveredNode(null)}
                   >
-                    <circle r={folderSize + 4} fill={node.color} opacity="0.12" style={{ filter: glow !== 'none' ? 'blur(4px)' : 'none' }} />
+                    {isDropTarget && (
+                      <>
+                        <circle 
+                          r={folderSize + 22} 
+                          fill="none" 
+                          stroke="#10b981" 
+                          strokeWidth="2.5" 
+                          strokeDasharray="4,4" 
+                          opacity="0.9"
+                          style={{ animation: 'dash 3s linear infinite' }} 
+                        />
+                        <circle r={folderSize + 14} fill="#10b981" opacity="0.2" />
+                        <text
+                          y={-(folderSize + 12)}
+                          textAnchor="middle"
+                          fill="#34d399"
+                          fontSize="9"
+                          fontWeight="bold"
+                          className="pointer-events-none select-none font-sans drop-shadow-md"
+                        >
+                          Drop to Move
+                        </text>
+                      </>
+                    )}
+                    <circle r={folderSize + 4} fill={isDropTarget ? '#10b981' : node.color} opacity={isDropTarget ? 0.35 : 0.12} style={{ filter: glow !== 'none' || isDropTarget ? 'blur(4px)' : 'none' }} />
                     <circle
                       r={folderSize}
                       fill="#0f0e15"
-                      stroke={node.color}
-                      strokeWidth="2.5"
+                      stroke={isDropTarget ? '#10b981' : node.color}
+                      strokeWidth={isDropTarget ? "3.5" : "2.5"}
                       className="transition-all duration-300"
-                      style={{ transform: `scale(${scale})` }}
+                      style={{ transform: `scale(${isDropTarget ? 1.2 : scale})` }}
                     />
                     <text
                       y="4"
@@ -4051,9 +4763,9 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                     <text
                       y={folderSize + 18}
                       textAnchor="middle"
-                      fill="white"
+                      fill={isDropTarget ? '#34d399' : 'white'}
                       fontSize="10"
-                      fontWeight="500"
+                      fontWeight={isDropTarget ? "bold" : "500"}
                       className="pointer-events-none select-none drop-shadow-md bg-black/60 font-sans"
                     >
                       {node.label}
@@ -4061,6 +4773,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                   </g>
                 );
               } else {
+                const isBeingDragged = draggedNodeId === node.id;
                 return (
                   <g
                     key={node.id}
@@ -4072,22 +4785,22 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                     onMouseEnter={() => setHoveredNode(node)}
                     onMouseLeave={() => setHoveredNode(null)}
                   >
-                    <circle r="13" fill={node.color} opacity="0.08" />
+                    <circle r={isBeingDragged ? "18" : "13"} fill={isBeingDragged ? "#10b981" : node.color} opacity={isBeingDragged ? "0.3" : "0.08"} />
                     <circle
-                      r="9.5"
+                      r={isBeingDragged ? "12" : "9.5"}
                       fill="#15141e"
-                      stroke={node.color}
-                      strokeWidth="1.5"
-                      style={{ transform: `scale(${scale})`, filter: glow !== 'none' ? 'blur(1px)' : 'none' }}
-                      className="transition-all duration-300"
+                      stroke={isBeingDragged ? "#10b981" : node.color}
+                      strokeWidth={isBeingDragged ? "2.5" : "1.5"}
+                      style={{ transform: `scale(${isBeingDragged ? 1.25 : scale})`, filter: isBeingDragged ? 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.6))' : glow !== 'none' ? 'blur(1px)' : 'none' }}
+                      className="transition-all duration-200"
                     />
                     {node.favIconUrl && isValidUrl(node.favIconUrl) ? (
                       <image
                         href={node.favIconUrl}
-                        x="-6.5"
-                        y="-6.5"
-                        width="13"
-                        height="13"
+                        x={isBeingDragged ? "-8" : "-6.5"}
+                        y={isBeingDragged ? "-8" : "-6.5"}
+                        width={isBeingDragged ? "16" : "13"}
+                        height={isBeingDragged ? "16" : "13"}
                         className="rounded pointer-events-none"
                         onError={(event) => {
                           (event.currentTarget as SVGImageElement).style.display = 'none';

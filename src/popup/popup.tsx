@@ -1,9 +1,11 @@
+import '../utils/chrome-polyfill';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getSessions, WorkspaceSession } from '../storage/db';
 import { Folder, LayoutDashboard, Plus, ExternalLink, Lock, Unlock, XSquare, AlertCircle, Eye, EyeOff, CheckCircle2, Info } from 'lucide-react';
 import '../styles/globals.css';
 import { sha256 } from '../utils/crypto';
+import { isValidUrl } from '../utils/url';
 
 class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
   constructor(props: {children: React.ReactNode}) {
@@ -68,14 +70,17 @@ const PromptModal: React.FC<PromptModalProps> = ({ config }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <form onSubmit={handleSubmit} className="bg-[#121212] border border-white/10 rounded-2xl w-full max-w-[280px] p-5 shadow-2xl flex flex-col gap-4">
-        <div className="mx-auto p-3 bg-blue-500/10 rounded-full border border-blue-500/20 text-blue-400">
-          <Lock className="w-6 h-6" />
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <form onSubmit={handleSubmit} className="relative bg-[#0d1322]/95 border border-white/12 rounded-3xl w-full max-w-[280px] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-3.5 overflow-hidden">
+        {/* Top subtle highlight */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-[1px] bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
+        
+        <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+          <Lock className="w-5 h-5" />
         </div>
         <div className="text-center">
-          <h3 className="text-sm font-semibold text-white mb-1">{config.title}</h3>
-          <p className="text-[11px] text-white/50 leading-relaxed">{config.description}</p>
+          <h3 className="text-sm font-bold text-white tracking-tight mb-1">{config.title}</h3>
+          <p className="text-[11px] text-slate-300/80 leading-relaxed">{config.description}</p>
         </div>
         
         <div className="relative flex items-center w-full">
@@ -88,7 +93,7 @@ const PromptModal: React.FC<PromptModalProps> = ({ config }) => {
               if (error) setError(null);
             }}
             placeholder="••••••••"
-            className={`w-full bg-white/5 border rounded-full pl-5 pr-12 py-2.5 text-sm text-white focus:outline-none transition-all ${
+            className={`w-full bg-white/5 border rounded-xl pl-4 pr-11 py-2.5 text-xs text-white focus:outline-none transition-all ${
               error 
                 ? 'border-red-500/50 focus:border-red-500' 
                 : 'border-white/10 focus:border-blue-500/50'
@@ -99,30 +104,30 @@ const PromptModal: React.FC<PromptModalProps> = ({ config }) => {
             <button 
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 text-white/40 hover:text-white transition-colors"
+              className="absolute right-3.5 text-white/40 hover:text-white transition-colors"
               disabled={isLoading}
             >
-              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           )}
         </div>
         {error && (
-          <p className="text-[10px] text-red-400 text-center mt-[-4px] font-medium">
+          <p className="text-[10px] text-red-400 text-center font-medium">
             {error}
           </p>
         )}
-        <div className="flex gap-2">
+        <div className="flex gap-2 mt-1">
           <button
             type="button"
             onClick={config.onCancel}
-            className="flex-1 py-2.5 bg-white/5 hover:bg-white/10 active:scale-[0.98] transition-all rounded-full text-xs font-semibold text-white/80 border border-white/5"
+            className="flex-1 py-2.5 bg-white/[0.06] hover:bg-white/[0.12] active:scale-[0.98] transition-all rounded-xl text-xs font-semibold text-white/80 border border-white/10"
             disabled={isLoading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all rounded-full text-xs font-semibold text-white shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+            className="flex-1 py-2.5 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 active:scale-[0.98] transition-all rounded-xl text-xs font-semibold text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]"
             disabled={isLoading}
           >
             {isLoading ? 'Verifying...' : 'Unlock'}
@@ -160,7 +165,13 @@ const Popup = () => {
   };
 
   useEffect(() => {
-    loadSessions();
+    let mounted = true;
+    getSessions().then((allSessions) => {
+      if (!mounted) return;
+      const pinnedSessions = allSessions.filter(s => s.isPinned);
+      setSessions(pinnedSessions.slice(0, 5));
+    });
+    return () => { mounted = false; };
   }, []);
 
   const openDashboard = (folderId?: string) => {
@@ -249,6 +260,10 @@ const Popup = () => {
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab && tab.url) {
+      if (!isValidUrl(tab.url)) {
+        await showModalAlert("Cannot Save Tab", "Internal browser pages (like chrome:// or settings) cannot be saved.", "error");
+        return;
+      }
       chrome.runtime.sendMessage({
         type: 'ADD_TAB_TO_FOLDER',
         sessionId: session.id,
@@ -331,20 +346,38 @@ const Popup = () => {
     <div className="w-[320px] bg-[#0a0a0a] text-white p-4 font-sans">
       {modalConfig && <PromptModal config={modalConfig} />}
       {alertConfig && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#121212] border border-white/10 rounded-2xl w-full max-w-[280px] p-5 shadow-2xl flex flex-col gap-4 text-center">
-            {alertConfig.type === 'success' ? (
-              <CheckCircle2 className="w-8 h-8 text-green-400 mx-auto" />
-            ) : alertConfig.type === 'error' ? (
-              <XSquare className="w-8 h-8 text-red-400 mx-auto" />
-            ) : (
-              <AlertCircle className="w-8 h-8 text-blue-400 mx-auto" />
-            )}
-            <h3 className="text-sm font-semibold text-white">{alertConfig.title}</h3>
-            <p className="text-[11px] text-white/50">{alertConfig.message}</p>
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="relative bg-[#0d1322]/95 border border-white/12 rounded-3xl w-full max-w-[280px] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.8)] flex flex-col gap-3.5 text-center overflow-hidden">
+            {/* Top subtle highlight */}
+            <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-32 h-[1px] bg-gradient-to-r from-transparent ${
+              alertConfig.type === 'error' ? 'via-red-500/60' : alertConfig.type === 'success' ? 'via-emerald-500/60' : 'via-blue-500/60'
+            } to-transparent`} />
+
+            {/* Glowing Icon Badge */}
+            <div className={`w-12 h-12 rounded-2xl mx-auto flex items-center justify-center border ${
+              alertConfig.type === 'error' 
+                ? 'bg-red-500/15 border-red-500/30 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.2)]' 
+                : alertConfig.type === 'success'
+                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.2)]'
+                : 'bg-[#006199]/20 border-[#006199]/40 text-[#76C0EC] shadow-[0_0_20px_rgba(66,91,154,0.2)]'
+            }`}>
+              {alertConfig.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5" />
+              ) : alertConfig.type === 'error' ? (
+                <AlertCircle className="w-5 h-5" />
+              ) : (
+                <Info className="w-5 h-5" />
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold text-white tracking-tight mb-1">{alertConfig.title}</h3>
+              <p className="text-[11px] text-slate-300/80 leading-relaxed">{alertConfig.message}</p>
+            </div>
+
             <button
               onClick={alertConfig.onClose}
-              className="py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-all rounded-full text-xs font-semibold text-white"
+              className="mt-1 py-2.5 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-500 hover:to-sky-500 active:scale-[0.98] transition-all rounded-xl text-xs font-semibold text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]"
             >
               OK
             </button>
@@ -352,12 +385,19 @@ const Popup = () => {
         </div>
       )}
       <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/10">
-        <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white">
-            <rect x="8" y="4" width="14" height="12" rx="2" strokeWidth="1.5" opacity="0.4" />
-            <rect x="5" y="7" width="14" height="12" rx="2" strokeWidth="1.5" opacity="0.7" />
-            <rect x="2" y="10" width="14" height="12" rx="2" strokeWidth="1.5" fill="currentColor" fillOpacity="0.1" />
-            <path d="M4 14H14" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
+        <div className="w-8 h-8 rounded-xl bg-[#EEF4FB] border border-[#425B9A]/30 shadow-[0_2px_10px_rgba(66,91,154,0.35)] flex items-center justify-center p-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" className="w-full h-full">
+            <defs>
+              <linearGradient id="pop_hb" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#2e4070"/><stop offset="100%" stopColor="#425B9A"/></linearGradient>
+              <linearGradient id="pop_hm" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#76C0EC"/><stop offset="100%" stopColor="#55aee0"/></linearGradient>
+              <linearGradient id="pop_hf" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#425B9A"/><stop offset="100%" stopColor="#5470b8"/></linearGradient>
+            </defs>
+            <rect x="4" y="16" width="42" height="12" rx="4" fill="url(#pop_hb)"/>
+            <rect x="7" y="26" width="42" height="12" rx="4" fill="url(#pop_hm)"/>
+            <rect x="10" y="36" width="42" height="12" rx="4" fill="url(#pop_hf)"/>
+            <circle cx="18" cy="42" r="2.2" fill="#FF5F57"/>
+            <circle cx="24.5" cy="42" r="2.2" fill="#FEBC2E"/>
+            <circle cx="31" cy="42" r="2.2" fill="#28C840"/>
           </svg>
         </div>
         <div>

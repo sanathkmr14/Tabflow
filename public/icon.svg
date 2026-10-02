@@ -1,15 +1,29 @@
-<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3b82f6" />
-      <stop offset="100%" stop-color="#2563eb" />
+    <linearGradient id="back" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2e4070"/>
+      <stop offset="100%" stop-color="#425B9A"/>
+    </linearGradient>
+    <linearGradient id="mid" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#76C0EC"/>
+      <stop offset="100%" stop-color="#55aee0"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#425B9A"/>
+      <stop offset="100%" stop-color="#5470b8"/>
     </linearGradient>
   </defs>
-  <rect width="24" height="24" rx="4" fill="url(#bgGrad)" />
-  <g stroke="#ffffff">
-    <rect x="8" y="4" width="14" height="12" rx="2" stroke-width="1.5" opacity="0.4" />
-    <rect x="5" y="7" width="14" height="12" rx="2" stroke-width="1.5" opacity="0.7" />
-    <rect x="2" y="10" width="14" height="12" rx="2" stroke-width="1.5" fill="#ffffff" fill-opacity="0.1" />
-    <path d="M4 14H14" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
-  </g>
+
+  <!-- Back tab bar (dark navy) -->
+  <rect x="4" y="16" width="42" height="12" rx="4" fill="url(#back)"/>
+
+  <!-- Mid tab bar (sky blue) offset down -->
+  <rect x="7" y="26" width="42" height="12" rx="4" fill="url(#mid)"/>
+
+  <!-- Front tab bar (navy) offset down more -->
+  <rect x="10" y="36" width="42" height="12" rx="4" fill="url(#front)"/>
+  <!-- Traffic light dots on front bar -->
+  <circle cx="18" cy="42" r="2.2" fill="#FF5F57"/>
+  <circle cx="24.5" cy="42" r="2.2" fill="#FEBC2E"/>
+  <circle cx="31" cy="42" r="2.2" fill="#28C840"/>
 </svg>

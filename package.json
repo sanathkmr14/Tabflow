@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "rm -rf dist && tsc -b && vite build && cd dist && zip -r ../tabflow_extension.zip . && cd .. && cp -R src/landing/* dist/ && mv tabflow_extension.zip dist/ && cp dist/tabflow_extension.zip src/landing/",
+    "build": "rm -rf dist && tsc -b && vite build && cd dist && rm -f tabflow_extension.zip && zip -r ../tabflow_extension.zip . -x \"*.zip\" \"screenshots/*\" && cd .. && cp -R src/landing/* dist/ && mv tabflow_extension.zip dist/ && cp dist/tabflow_extension.zip src/landing/ && cp dist/tabflow_extension.zip public/",
     "lint": "eslint .",
     "preview": "vite preview"
   },

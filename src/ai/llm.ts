@@ -36,9 +36,9 @@ export async function callLLM(prompt: string, systemPrompt: string = ''): Promis
   const { provider, apiKey, model } = config;
 
   if (provider === 'gemini') {
-    return callGemini(apiKey, model || 'gemini-2.5-flash', prompt, systemPrompt);
+    return callGemini(apiKey, model || 'gemini-2.0-flash', prompt, systemPrompt);
   } else if (provider === 'openrouter') {
-    return callOpenRouter(apiKey, model || 'google/gemini-2.5-flash', prompt, systemPrompt);
+    return callOpenRouter(apiKey, model || 'google/gemini-2.0-flash-001', prompt, systemPrompt);
   } else if (provider === 'chatgpt') {
     return callChatGPT(apiKey, model || 'gpt-4o-mini', prompt, systemPrompt);
   }
@@ -138,9 +138,9 @@ export async function streamLLM(
   const { provider, apiKey, model } = config;
 
   if (provider === 'gemini') {
-    return streamGemini(apiKey, model || 'gemini-2.5-flash', prompt, systemPrompt, onChunk);
+    return streamGemini(apiKey, model || 'gemini-2.0-flash', prompt, systemPrompt, onChunk);
   } else if (provider === 'openrouter') {
-    return streamOpenRouter(apiKey, model || 'google/gemini-2.5-flash', prompt, systemPrompt, onChunk);
+    return streamOpenRouter(apiKey, model || 'google/gemini-2.0-flash-001', prompt, systemPrompt, onChunk);
   } else if (provider === 'chatgpt') {
     return streamChatGPT(apiKey, model || 'gpt-4o-mini', prompt, systemPrompt, onChunk);
   }
