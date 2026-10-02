@@ -4574,6 +4574,11 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
       return;
     }
 
+    if (isLayoutFrozen && targetNode.type === 'folder') {
+      showToast('Layout Locked', 'Unlock layout at top right to reposition folders.', 'info');
+      return;
+    }
+
     if (targetNode.type === 'tab' && targetNode.parentId) {
       const parentFolder = nodes.find(n => n.id === targetNode.parentId) || foldersList.find(f => f.id === targetNode.parentId);
       if (parentFolder?.isLocked) {
@@ -4733,7 +4738,12 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
           return;
         }
       }
-      await saveCurrentPositions(nodes);
+      if (isLayoutFrozen) {
+        // If layout is frozen and tab wasn't dropped into another folder, snap back to its saved orbit
+        initializeLayout(foldersList, Array.from(visibleFolderIds), true, savedPositionsRef.current, expandedMapFoldersRef.current);
+      } else {
+        await saveCurrentPositions(nodes);
+      }
     }
 
     setDraggedNodeId(null);
@@ -4741,70 +4751,72 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   };
 
   const handleAutoLayout = async () => {
-    const tempNodes = [...nodes];
-    const iterations = 80;
+    // Deep clone nodes to prevent direct state mutation during simulation
+    const tempNodes: MapNode[] = nodes.map(n => ({ ...n }));
+    const folderNodes = tempNodes.filter(n => n.type === 'folder');
+    
+    if (folderNodes.length === 0) return;
+
+    const iterations = 100;
     const width = 800;
     const height = 600;
     const center = { x: 400, y: 300 };
 
-    for (let step = 0; step < iterations; step++) {
-      // Repulsion between folders
-      for (let i = 0; i < tempNodes.length; i++) {
-        for (let j = i + 1; j < tempNodes.length; j++) {
-          const nA = tempNodes[i];
-          const nB = tempNodes[j];
-
-          if (nA.type === 'folder' && nB.type === 'folder') {
-            const dx = nA.x - nB.x;
-            const dy = nA.y - nB.y;
+    if (folderNodes.length === 1) {
+      folderNodes[0].x = center.x;
+      folderNodes[0].y = center.y;
+    } else {
+      for (let step = 0; step < iterations; step++) {
+        // Folder-folder repulsion
+        for (let i = 0; i < folderNodes.length; i++) {
+          for (let j = i + 1; j < folderNodes.length; j++) {
+            const fA = folderNodes[i];
+            const fB = folderNodes[j];
+            const dx = fA.x - fB.x;
+            const dy = fA.y - fB.y;
             const distSq = dx * dx + dy * dy || 1;
             const dist = Math.sqrt(distSq);
-            const force = 1200 / distSq;
-            if (dist < 220) {
+            const minDesiredDist = 200;
+            if (dist < minDesiredDist) {
+              const force = (minDesiredDist - dist) * 0.08;
               const fx = (dx / dist) * force;
               const fy = (dy / dist) * force;
-              nA.x += fx;
-              nA.y += fy;
-              nB.x -= fx;
-              nB.y -= fy;
+              fA.x += fx;
+              fA.y += fy;
+              fB.x -= fx;
+              fB.y -= fy;
             }
           }
         }
+
+        // Center gravity to keep folders nicely inside canvas
+        folderNodes.forEach(f => {
+          const dx = center.x - f.x;
+          const dy = center.y - f.y;
+          f.x += dx * 0.02;
+          f.y += dy * 0.02;
+
+          // Clamp to boundary with padding
+          f.x = Math.max(120, Math.min(width - 120, f.x));
+          f.y = Math.max(120, Math.min(height - 120, f.y));
+        });
       }
-
-      // Attraction between tabs and parent folders
-      tempNodes.forEach(node => {
-        if (node.type === 'tab' && node.parentId) {
-          const parent = tempNodes.find(p => p.id === node.parentId);
-          if (parent) {
-            const dx = parent.x - node.x;
-            const dy = parent.y - node.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const targetDist = 60;
-            const force = (dist - targetDist) * 0.15;
-            const fx = (dx / dist) * force;
-            const fy = (dy / dist) * force;
-            node.x += fx;
-            node.y += fy;
-          }
-        }
-      });
-
-      // Gravity towards center
-      tempNodes.forEach(node => {
-        const dx = center.x - node.x;
-        const dy = center.y - node.y;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        node.x += (dx / dist) * 0.5;
-        node.y += (dy / dist) * 0.5;
-        
-        node.x = Math.max(50, Math.min(width - 50, node.x));
-        node.y = Math.max(50, Math.min(height - 50, node.y));
-      });
     }
+
+    // Organize child tabs into clean orbital rings around their settled parent folder
+    folderNodes.forEach(folder => {
+      const childTabs = tempNodes.filter(n => n.type === 'tab' && n.parentId === folder.id);
+      const tabCount = childTabs.length;
+      childTabs.forEach((tab, idx) => {
+        const orbitPos = getTabOrbitPosition(folder.x, folder.y, idx, tabCount);
+        tab.x = orbitPos.x;
+        tab.y = orbitPos.y;
+      });
+    });
 
     setNodes(tempNodes);
     await saveCurrentPositions(tempNodes);
+    showToast('Layout Organized', 'Workspace Map nodes have been auto-arranged and organized.', 'success');
   };
 
   const handleDoubleClick = (url?: string) => {
@@ -5193,7 +5205,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                   <g 
                     key={node.id} 
                     transform={`translate(${node.x}, ${node.y})`}
-                    className={node.isLocked ? "cursor-not-allowed transition-transform duration-300" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
+                    className={node.isLocked ? "cursor-not-allowed transition-transform duration-300" : isLayoutFrozen ? "cursor-pointer transition-transform duration-300" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
                     style={{ opacity }}
                     onMouseDown={(e) => handleMouseDown(node.id, e)}
                     onClick={(e) => { e.stopPropagation(); handleFolderClick(node.id); }}
@@ -5288,7 +5300,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                   <g
                     key={node.id}
                     transform={`translate(${node.x}, ${node.y})`}
-                    className={isParentLocked ? "cursor-not-allowed transition-transform duration-300 opacity-60" : "cursor-pointer transition-transform duration-300"}
+                    className={isParentLocked ? "cursor-not-allowed transition-transform duration-300 opacity-60" : "cursor-grab active:cursor-grabbing transition-transform duration-300"}
                     style={{ opacity: isParentLocked ? 0.5 : opacity }}
                     onMouseDown={(e) => handleMouseDown(node.id, e)}
                     onDoubleClick={() => handleDoubleClick(node.url)}
@@ -5376,10 +5388,16 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
           </button>
           
           <button 
-            onClick={() => { 
+            onClick={async () => { 
               setZoom(1); 
               setPan({ x: 0, y: 0 }); 
-              initializeLayout(foldersList, Array.from(visibleFolderIds));
+              setIsLayoutFrozen(false);
+              setSavedPositions({});
+              const db = await import('@/storage/db');
+              await db.setSetting('map_frozen', false);
+              await db.setSetting('map_positions', {});
+              initializeLayout(foldersList, Array.from(visibleFolderIds), false, {});
+              showToast('Layout Reset', 'Zoom, pan, and layout positions have been reset.', 'info');
             }}
             className="text-[10px] text-white/40 hover:text-white/80 font-medium transition-colors px-2 py-1 hover:bg-white/5 rounded-lg border border-transparent hover:border-white/5 ml-1 cursor-pointer"
             title="Reset Zoom, Pan & Layout"
