@@ -14,13 +14,13 @@ import type { WorkspaceSession } from '../storage/db';
 const checkIncognitoAllowed = (): Promise<boolean> => {
   return new Promise((resolve) => {
     try {
-      if (chrome.extension && typeof chrome.extension.isAllowedIncognitoAccess === 'function') {
+      if (typeof chrome !== 'undefined' && chrome.extension && typeof chrome.extension.isAllowedIncognitoAccess === 'function') {
         chrome.extension.isAllowedIncognitoAccess((allowed) => resolve(!!allowed));
       } else {
-        resolve(false);
+        resolve(true);
       }
     } catch {
-      resolve(false);
+      resolve(true);
     }
   });
 };
@@ -981,11 +981,16 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
 
   const submitAddTabManually = () => {
     if (!showAddTabModal || !newTabUrl.trim()) return;
-    const url = newTabUrl.startsWith('http') ? newTabUrl : `https://${newTabUrl}`;
+    const url = sanitizeUrl(newTabUrl.trim());
+    if (!isValidUrl(url)) {
+      showToast('Invalid URL', 'Please enter a valid website address.', 'error');
+      return;
+    }
+    const title = cleanTabTitle(newTabName.trim() || url);
     chrome.runtime.sendMessage({
       type: 'ADD_TAB_TO_FOLDER',
       sessionId: showAddTabModal,
-      tab: { title: newTabName.trim() || url, url }
+      tab: { title, url }
     }, (response) => {
       loadFolders();
       setShowAddTabModal(null);
@@ -1006,12 +1011,16 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       setShowEditTabModal(null);
       return;
     }
-    const finalUrl = url.startsWith('http') ? url : `https://${url}`;
+    const finalUrl = sanitizeUrl(url.trim());
+    if (!isValidUrl(finalUrl)) {
+      showToast('Invalid URL', 'Please enter a valid website address.', 'error');
+      return;
+    }
     chrome.runtime.sendMessage({
       type: 'EDIT_TAB_IN_FOLDER',
       sessionId,
       url: oldUrl,
-      newTitle: title.trim(),
+      newTitle: cleanTabTitle(title.trim()),
       newUrl: finalUrl
     }, () => {
       loadFolders();
@@ -1332,53 +1341,107 @@ Rules for the table:
     });
   };
 
-  const openTab = async (url: string, mode: 'current' | 'new' | 'incognito' = 'current', tabTitle?: string) => {
+  const openTab = async (
+    url: string, 
+    mode: 'current' | 'new_tab' | 'new_window' | 'new' | 'incognito' = 'new_tab', 
+    tabTitle?: string
+  ) => {
     url = sanitizeUrl(url);
     if (!isValidUrl(url)) {
       showToast('Restricted URL', 'This system URL cannot be opened for browser security reasons.', 'error');
       return;
     }
-    const openTabs = await chrome.tabs.query({});
-    const existingTab = openTabs.find(t => t.url && isSameUrl(t.url, url));
-    
-    if (existingTab && existingTab.id && existingTab.windowId) {
-      try {
-        await chrome.windows.update(existingTab.windowId, { focused: true });
-        await chrome.tabs.update(existingTab.id, { active: true });
-        showToast('Tab Focused', 'Switched focus to the already active tab.', 'info');
+
+    if (mode === 'incognito') {
+      const isAllowed = await checkIncognitoAllowed();
+      if (!isAllowed) {
+        showToast('Incognito Access Required', 'Please enable "Allow in Incognito" in chrome://extensions for Tabflow.', 'error');
+        try {
+          if (typeof chrome !== 'undefined' && chrome.windows?.create) {
+            await chrome.windows.create({ url, incognito: true, focused: true });
+            showToast('Incognito Window Opened', 'Opened tab in private incognito window.', 'success');
+            return;
+          }
+        } catch {}
+        window.open(url, '_blank');
         return;
-      } catch {
-        // Continue to re-open if tab handle was stale
       }
+      try {
+        if (typeof chrome !== 'undefined' && chrome.windows?.create) {
+          await chrome.windows.create({ url, incognito: true, focused: true });
+          showToast('Incognito Window Opened', 'Opened tab in private incognito window.', 'success');
+        } else {
+          window.open(url, '_blank');
+          showToast('Opened', 'Opened URL in private mode.', 'success');
+        }
+      } catch (err: any) {
+        console.warn('Failed to open incognito window:', err);
+        try {
+          window.open(url, '_blank');
+          showToast('Tab Opened', 'Could not open private window; opened standard window instead.', 'info');
+        } catch {
+          showToast('Action Failed', 'Could not open tab.', 'error');
+        }
+      }
+      return;
     }
 
-    if (mode === 'current') {
+    if (mode === 'new' || mode === 'new_window') {
       try {
-        chrome.tabs.create({ url, active: true, ...(tabTitle ? { title: tabTitle } : {}) } as any);
+        if (typeof chrome !== 'undefined' && chrome.windows?.create) {
+          await chrome.windows.create({ url, focused: true });
+        } else {
+          window.open(url, '_blank');
+        }
+        showToast('Window Created', 'Opened tab in a new browser window.', 'success');
       } catch {
+        window.open(url, '_blank');
+        showToast('Window Created', 'Opened tab in a new window.', 'success');
+      }
+      return;
+    }
+
+    if (mode === 'new_tab') {
+      try {
+        if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+          await chrome.tabs.create({ url, active: true, ...(tabTitle ? { title: tabTitle } : {}) } as any);
+        } else {
+          window.open(url, '_blank');
+        }
+        showToast('Tab Opened', 'Opened in a new browser tab.', 'success');
+      } catch {
+        window.open(url, '_blank');
+        showToast('Tab Opened', 'Opened in a new browser tab.', 'success');
+      }
+      return;
+    }
+
+    // Default / 'current': switch to existing tab if already open, else create new tab
+    try {
+      if (typeof chrome !== 'undefined' && chrome.tabs?.query) {
+        const openTabs = await chrome.tabs.query({});
+        const existingTab = openTabs.find(t => t.url && isSameUrl(t.url, url));
+        if (existingTab && existingTab.id) {
+          if (existingTab.windowId && chrome.windows?.update) {
+            await chrome.windows.update(existingTab.windowId, { focused: true });
+          }
+          await chrome.tabs.update(existingTab.id, { active: true });
+          showToast('Tab Focused', 'Switched focus to already open tab.', 'info');
+          return;
+        }
+      }
+    } catch {}
+
+    try {
+      if (typeof chrome !== 'undefined' && chrome.tabs?.create) {
+        await chrome.tabs.create({ url, active: true, ...(tabTitle ? { title: tabTitle } : {}) } as any);
+      } else {
         window.open(url, '_blank');
       }
       showToast('Tab Opened', 'Opened tab in your browser.', 'success');
-    } else if (mode === 'new') {
-      try {
-        chrome.windows.create({ url, focused: true });
-      } catch {
-        window.open(url, '_blank');
-      }
-      showToast('Window Created', 'Opened tab in a new browser window.', 'success');
-    } else if (mode === 'incognito') {
-      checkIncognitoAllowed().then((isAllowed) => {
-        if (!isAllowed) {
-          showToast('Incognito Access Required', 'Please enable "Allow in Incognito" in chrome://extensions for Tabflow.', 'error');
-        } else {
-          try {
-            chrome.windows.create({ url, incognito: true, focused: true });
-            showToast('Incognito Window Created', 'Opened tab in a private incognito window.', 'success');
-          } catch {
-            showToast('Action Failed', 'Could not open private window.', 'error');
-          }
-        }
-      });
+    } catch {
+      window.open(url, '_blank');
+      showToast('Tab Opened', 'Opened tab in your browser.', 'success');
     }
   };
 
@@ -1753,8 +1816,11 @@ Rules for the table:
                             <Star className={`w-3.5 h-3.5 ${tab.isStarred ? 'fill-current' : ''}`} />
                           </button>
                           {tab.favIconUrl ? <img src={tab.favIconUrl} className="w-4 h-4 flex-shrink-0" /> : <div className="w-4 h-4 bg-white/10 rounded-sm flex-shrink-0" />}
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-sm font-medium text-white/70 truncate max-w-sm" title={tab.url}>{tab.title}</span>
+                          <div 
+                            className="flex flex-col min-w-0 flex-1 cursor-pointer"
+                            onClick={() => openTab(tab.url, 'new_tab', tab.title)}
+                          >
+                            <span className="text-sm font-medium text-white/70 hover:text-white truncate max-w-sm transition-colors" title={tab.url}>{tab.title}</span>
                             <div className="flex items-center gap-2 flex-wrap mt-0.5 select-none">
                               <span className="text-[10px] text-white/30 truncate max-w-[180px]">{tab.url.replace(/^(https?:\/\/)?(www\.)?/, '')}</span>
                               {tab.scheduledOpenTimes && tab.scheduledOpenTimes.length > 0 && (
@@ -1773,13 +1839,13 @@ Rules for the table:
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Tooltip content="Open Tab"><button onClick={() => openTab(tab.url, 'current', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-green-400 transition-all">
-                            <Play className="w-3.5 h-3.5" />
+                          <Tooltip content="Open in New Tab"><button onClick={() => openTab(tab.url, 'new_tab', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-green-400 transition-all">
+                            <ExternalLink className="w-3.5 h-3.5" />
                           </button></Tooltip>
-                          <Tooltip content="New Window"><button onClick={() => openTab(tab.url, 'new', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-blue-400 transition-all">
+                          <Tooltip content="Open in New Window"><button onClick={() => openTab(tab.url, 'new_window', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-blue-400 transition-all">
                             <AppWindow className="w-3.5 h-3.5" />
                           </button></Tooltip>
-                          <Tooltip content="Incognito"><button onClick={() => openTab(tab.url, 'incognito', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-purple-400 transition-all">
+                          <Tooltip content="Open in Incognito"><button onClick={() => openTab(tab.url, 'incognito', tab.title)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-purple-400 transition-all">
                             <Ghost className="w-3.5 h-3.5" />
                           </button></Tooltip>
                           <Tooltip content="Close Tab"><button onClick={() => closeTab(tab.url)} className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-md text-white/40 hover:text-red-400 transition-all">

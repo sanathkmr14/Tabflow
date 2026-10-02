@@ -156,11 +156,25 @@ if (typeof window !== 'undefined') {
           } else if (msg?.type === 'ADD_TAB_TO_FOLDER') {
             const sessions = await getSessions();
             const target = sessions.find(s => s.id === msg.sessionId);
-            if (target) {
-              target.tabs.push(msg.tab);
-              await saveSession(target);
+            let added = false;
+            if (target && msg.tab?.url) {
+              const url = sanitizeUrl(msg.tab.url);
+              if (isValidUrl(url)) {
+                if (!target.tabs.some(t => isSameUrl(t.url, url))) {
+                  target.tabs.push({
+                    url,
+                    title: cleanTabTitle(msg.tab.title || url),
+                    favIconUrl: msg.tab.favIconUrl
+                  });
+                  await saveSession(target);
+                  added = true;
+                }
+              }
             }
-            response = { success: true, added: true };
+            messageListeners.forEach(l => {
+              try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+            });
+            response = { success: true, added };
           } else if (msg?.type === 'MOVE_TAB') {
             const sessions = await getSessions();
             const source = sessions.find(s => s.id === msg.sourceSessionId);
@@ -190,20 +204,24 @@ if (typeof window !== 'undefined') {
             const target = sessions.find(s => s.id === msg.sessionId);
             let addedCount = 0;
             if (target) {
-              const sampleTabs = [
+              const tabsToScan = mockTabsState.length > 0 ? mockTabsState : [
                 { url: 'https://news.ycombinator.com', title: 'Hacker News', favIconUrl: 'https://news.ycombinator.com/favicon.ico' },
                 { url: 'https://developer.mozilla.org', title: 'MDN Web Docs', favIconUrl: 'https://developer.mozilla.org/favicon.ico' },
                 { url: 'https://github.com/trending', title: 'Trending Repositories on GitHub', favIconUrl: 'https://github.githubassets.com/favicons/favicon.svg' }
               ];
-              for (const tab of sampleTabs) {
-                if (!target.tabs.find(t => t.url === tab.url)) {
-                  target.tabs.push(tab);
+              for (const tab of tabsToScan) {
+                const url = sanitizeUrl(tab.url);
+                if (isValidUrl(url) && !target.tabs.find(t => isSameUrl(t.url, url))) {
+                  target.tabs.push({ url, title: cleanTabTitle(tab.title || url), favIconUrl: tab.favIconUrl });
                   addedCount++;
                 }
               }
               await saveSession(target);
+              messageListeners.forEach(l => {
+                try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+              });
             }
-            response = { success: true, addedCount, validCount: 3 };
+            response = { success: true, addedCount, validCount: target ? target.tabs.length : 0 };
           } else if (msg?.type === 'OPEN_FOLDER_TABS') {
             const sessions = await getSessions();
             const target = sessions.find(s => s.id === msg.sessionId);
@@ -217,16 +235,14 @@ if (typeof window !== 'undefined') {
                     openedWindowRefs.set(t.url, winRef);
                   }
                 } catch {}
-                if (!mockTabsState.find(mt => mt.url && isSameUrl(mt.url, t.url))) {
-                  mockTabsState.push({
-                    id: Date.now() + Math.floor(Math.random() * 1000),
-                    windowId: 1,
-                    title: t.title || t.url,
-                    url: t.url,
-                    active: false
-                  });
-                  count++;
-                }
+                mockTabsState.push({
+                  id: Date.now() + Math.floor(Math.random() * 1000),
+                  windowId: 1,
+                  title: t.title || t.url,
+                  url: t.url,
+                  active: false
+                });
+                count++;
               });
               saveMockTabs();
             }
@@ -676,8 +692,8 @@ if (typeof window !== 'undefined') {
   if (!g.chrome.extension) {
     g.chrome.extension = {
       isAllowedIncognitoAccess: (callback?: (allowed: boolean) => void) => {
-        if (typeof callback === 'function') callback(false);
-        return Promise.resolve(false);
+        if (typeof callback === 'function') callback(true);
+        return Promise.resolve(true);
       },
     };
   }

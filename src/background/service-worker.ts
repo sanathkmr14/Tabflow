@@ -1,7 +1,7 @@
 
 import { callLLM, streamLLM } from '@/ai/llm';
 import { getSessions, saveSession, deleteSession, WorkspaceSession } from '@/storage/db';
-import { isValidUrl, sanitizeUrl, isSameUrl } from '@/utils/url';
+import { isValidUrl, sanitizeUrl, isSameUrl, cleanTabTitle } from '@/utils/url';
 import { 
   buildChatSystemPrompt, 
   buildChatFullPrompt, 
@@ -54,13 +54,13 @@ function safeBase64Decode(str: string): string {
 function checkIncognitoAllowed(): Promise<boolean> {
   return new Promise((resolve) => {
     try {
-      if (chrome.extension && typeof chrome.extension.isAllowedIncognitoAccess === 'function') {
+      if (typeof chrome !== 'undefined' && chrome.extension && typeof chrome.extension.isAllowedIncognitoAccess === 'function') {
         chrome.extension.isAllowedIncognitoAccess((res) => resolve(!!res));
       } else {
-        resolve(false);
+        resolve(true);
       }
     } catch {
-      resolve(false);
+      resolve(true);
     }
   });
 }
@@ -535,7 +535,7 @@ async function handleCreateFolder(name: string, tabs: any[]) {
   });
 }
 
-async function handleAddTab(sessionId: string, tab: {url: string, title: string}, passwordHash?: string) {
+async function handleAddTab(sessionId: string, tab: {url: string, title: string, favIconUrl?: string}, passwordHash?: string) {
   return withSessionLock(async () => {
     const sessions = await getSessions();
     const session = sessions.find(s => s.id === sessionId);
@@ -543,10 +543,17 @@ async function handleAddTab(sessionId: string, tab: {url: string, title: string}
     
     verifySessionAccess(session, passwordHash);
     
-    if (!session.tabs.find(t => t.url === tab.url)) {
-      if (!isValidUrl(tab.url)) throw new Error("Invalid URL");
-      session.tabs.push({ url: tab.url, title: tab.title });
+    const url = sanitizeUrl(tab.url);
+    if (!isValidUrl(url)) throw new Error("Invalid URL");
+    
+    if (!session.tabs.find(t => isSameUrl(t.url, url))) {
+      session.tabs.push({
+        url,
+        title: cleanTabTitle(tab.title || url),
+        favIconUrl: tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(url)}&sz=32`
+      });
       await saveSession(session);
+      chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
       return { session, added: true };
     }
     return { session, added: false };
@@ -622,12 +629,13 @@ async function handleEditTabInFolder(sessionId: string, url: string, newTitle: s
     
     verifySessionAccess(session, passwordHash);
 
-    const tab = session.tabs.find(t => t.url === url);
+    const tab = session.tabs.find(t => isSameUrl(t.url, url));
     if (tab) {
-      tab.title = newTitle;
+      tab.title = cleanTabTitle(newTitle);
+      const sanitizedNewUrl = sanitizeUrl(newUrl);
       
-      if (url !== newUrl) {
-        if (!isValidUrl(newUrl)) throw new Error("Invalid URL");
+      if (!isSameUrl(url, sanitizedNewUrl)) {
+        if (!isValidUrl(sanitizedNewUrl)) throw new Error("Invalid URL");
         // Clear old alarms
         const openAlarmPrefix = `open|tab|${safeBase64Encode(url)}|${sessionId}`;
         const closeAlarmPrefix = `close|tab|${safeBase64Encode(url)}|${sessionId}`;
@@ -640,9 +648,9 @@ async function handleEditTabInFolder(sessionId: string, url: string, newTitle: s
         }
 
         // Recreate alarms for new URL
-        tab.url = newUrl;
-        const newOpenPrefix = `open|tab|${safeBase64Encode(newUrl)}|${sessionId}`;
-        const newClosePrefix = `close|tab|${safeBase64Encode(newUrl)}|${sessionId}`;
+        tab.url = sanitizedNewUrl;
+        const newOpenPrefix = `open|tab|${safeBase64Encode(sanitizedNewUrl)}|${sessionId}`;
+        const newClosePrefix = `close|tab|${safeBase64Encode(sanitizedNewUrl)}|${sessionId}`;
         
         if (tab.scheduledOpenTimes) {
           for (const time of tab.scheduledOpenTimes) {
@@ -657,6 +665,7 @@ async function handleEditTabInFolder(sessionId: string, url: string, newTitle: s
       }
       
       await saveSession(session);
+      chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
     }
     return session;
   });
@@ -715,12 +724,18 @@ async function handleScanTabs(sessionId: string) {
     
     let addedCount = 0;
     for (const tab of validTabs) {
-      if (!session.tabs.find(t => t.url === tab.url)) {
-        session.tabs.push({ url: tab.url!, title: tab.title || tab.url!, favIconUrl: tab.favIconUrl });
+      const url = sanitizeUrl(tab.url!);
+      if (!session.tabs.find(t => isSameUrl(t.url, url))) {
+        session.tabs.push({
+          url,
+          title: cleanTabTitle(tab.title || url),
+          favIconUrl: tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(url)}&sz=32`
+        });
         addedCount++;
       }
     }
     await saveSession(session);
+    chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
     return { session, addedCount, validCount: validTabs.length };
   });
 }

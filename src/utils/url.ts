@@ -62,16 +62,40 @@ export function sanitizeUrl(url: string): string {
  */
 export function isSameUrl(url1?: string, url2?: string): boolean {
   if (!url1 || !url2) return false;
-  const clean = (url: string) => {
-    const noQueryOrHash = url.split('?')[0].split('#')[0];
-    return noQueryOrHash.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/+$/, '').toLowerCase();
-  };
-  const c1 = clean(url1);
-  const c2 = clean(url2);
-  if (!c1 || !c2) return false;
-  if (c1 === c2) return true;
-  if (c1.startsWith(c2 + '/') || c2.startsWith(c1 + '/')) return true;
-  return false;
+  const s1 = sanitizeUrl(url1);
+  const s2 = sanitizeUrl(url2);
+  try {
+    const u1 = new URL(s1);
+    const u2 = new URL(s2);
+
+    // Normalize hostname: lowercase, remove www.
+    const h1 = u1.hostname.replace(/^www\./, '').toLowerCase();
+    const h2 = u2.hostname.replace(/^www\./, '').toLowerCase();
+    if (h1 !== h2) return false;
+
+    // Normalize port
+    const port1 = u1.port || (u1.protocol === 'https:' ? '443' : '80');
+    const port2 = u2.port || (u2.protocol === 'https:' ? '443' : '80');
+    if (port1 !== port2) return false;
+
+    // Normalize pathname: remove trailing slash, normalize empty to /
+    const p1 = (u1.pathname.replace(/\/+$/, '') || '/').toLowerCase();
+    const p2 = (u2.pathname.replace(/\/+$/, '') || '/').toLowerCase();
+    if (p1 !== p2) return false;
+
+    // Normalize search params: sorted keys
+    const sp1 = Array.from(u1.searchParams.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const sp2 = Array.from(u2.searchParams.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    if (sp1.length !== sp2.length) return false;
+    for (let i = 0; i < sp1.length; i++) {
+      if (sp1[i][0] !== sp2[i][0] || sp1[i][1] !== sp2[i][1]) return false;
+    }
+
+    return true;
+  } catch {
+    const clean = (url: string) => url.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/+$/, '').toLowerCase();
+    return clean(url1) === clean(url2);
+  }
 }
 
 /**
