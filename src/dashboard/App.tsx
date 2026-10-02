@@ -7,7 +7,7 @@ import {
   Folder, Clock, Play, Pencil, Share2, Copy, Check, CheckSquare, XSquare, Pin, Star, Search, Download, Upload, Lock, Unlock, Key, AppWindow, Ghost, Info, Eye, EyeOff, Network, Plus, AlertCircle, X, ExternalLink
 } from 'lucide-react';
 import { sha256 } from '../utils/crypto';
-import { sanitizeUrl, isValidUrl, isSameUrl, cleanTabTitle, getCleanDomain } from '../utils/url';
+import { sanitizeUrl, isValidUrl, isSameUrl, cleanTabTitle, getCleanDomain, sanitizeTabTitleForTable } from '../utils/url';
 import { sanitizeStreamChunk } from '../utils/ai-chat-helper';
 import type { WorkspaceSession } from '../storage/db';
 
@@ -1080,6 +1080,35 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
     setSelectedShareTabs(new Set(folder.tabs.map((t: any) => t.url)));
   };
 
+  const generateLocalWorkspaceSummary = (folderName: string, tabs: any[]): string => {
+    const getCategory = (url: string, title: string): string => {
+      const lower = (url + ' ' + title).toLowerCase();
+      if (lower.includes('chatgpt') || lower.includes('gemini') || lower.includes('claude') || lower.includes('openrouter') || lower.includes('perplexity') || lower.includes('ai')) return 'AI Assistant';
+      if (lower.includes('youtube') || lower.includes('spotify') || lower.includes('music') || lower.includes('video') || lower.includes('netflix') || lower.includes('twitch')) return 'Video & Media';
+      if (lower.includes('github') || lower.includes('gitlab') || lower.includes('vercel') || lower.includes('stackoverflow') || lower.includes('apify') || lower.includes('console.')) return 'Developer Tools';
+      if (lower.includes('linkedin') || lower.includes('twitter') || lower.includes('x.com') || lower.includes('reddit') || lower.includes('facebook') || lower.includes('instagram')) return 'Social & Networking';
+      if (lower.includes('keep') || lower.includes('notion') || lower.includes('docs.google') || lower.includes('sheets.google') || lower.includes('apollo') || lower.includes('drive.google')) return 'Productivity';
+      if (lower.includes('colorhunt') || lower.includes('figma') || lower.includes('dribbble') || lower.includes('behance')) return 'Design & Creative';
+      return 'Web Resource';
+    };
+
+    const rows = tabs.map(t => {
+      const cleanTitle = sanitizeTabTitleForTable(t.title);
+      const cat = getCategory(t.url, cleanTitle);
+      const domain = getCleanDomain(t.url);
+      const desc = `Access and manage ${domain || cleanTitle} resources for ${folderName.toLowerCase()} activities.`;
+      return `| [${cleanTitle}](${t.url}) | ${cat} | ${desc} |`;
+    }).join('\n');
+
+    return `### ${folderName} Workspace Summary
+
+This curated workspace brings together ${tabs.length} essential tools and resources organized for streamlined workflow execution and productive browsing.
+
+| Resource | Category | Purpose & Overview |
+|---|---|---|
+${rows}`;
+  };
+
   const generateShareableWorkspace = async () => {
     if (!showShareModal) return;
     setIsGeneratingShare(true);
@@ -1091,24 +1120,45 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       if (selectedTabs.length === 0) throw new Error("No tabs selected to share.");
       
       const tabsList = selectedTabs.map((t: any, i: number) => {
-        const cleanTitle = cleanTabTitle(t.title);
+        const cleanTitle = sanitizeTabTitleForTable(t.title);
         const domain = getCleanDomain(t.url);
         return `${i + 1}. Title: "${cleanTitle}", Domain: ${domain}, URL: ${t.url}`;
       }).join('\n');
 
-      const prompt = `You are a professional workspace assistant. Summarize the workspace folder named '${showShareModal.folderName}' containing these tabs:\n\n${tabsList}\n\nPlease generate a clean, highly professional Markdown summary document.
-Include a brief introductory overview paragraph, followed by a clean summary table with EXACTLY these 3 columns:
-| Title | Domain | Description |
+      const prompt = `You are an expert executive research assistant. Create a polished, professional Markdown workspace summary for the folder named '${showShareModal.folderName}' containing these tabs:
+
+${tabsList}
+
+Generate a clear, high-quality document with:
+1. A concise overview paragraph (2-3 sentences) summarizing what this workspace is for and how these resources fit together.
+2. An elegant Markdown table with EXACTLY these 3 columns:
+| Resource | Category | Purpose & Overview |
 |---|---|---|
 
-Rules for the table:
-- Title: Clean website/tool name (without notification badges or numbers), formatted as a markdown link: [Website Name](Full URL)
-- Domain: The clean domain (e.g., youtube.com, chatgpt.com)
-- Description: A clear, professional 1-sentence description of the website or tool's purpose.
-- EXACTLY 3 columns. Never add extra columns, empty columns, or trailing pipes.
-- Ensure every cell is filled out concisely and professionally.`;
-      
-      const markdown = await import('../ai/llm').then(m => m.callLLM(prompt));
+Strict Table Formatting Requirements:
+- "Resource" column: Clean name of the service/page formatted as a markdown link: [Clean Name](URL). Never put raw unlinked URLs here. Do not include notification badges or pipe characters in the name.
+- "Category" column: A concise 1-3 word category (e.g., "AI Assistant", "Social & Networking", "Video & Media", "Productivity", "Developer Tools", "Design").
+- "Purpose & Overview" column: An articulate, informative 1-2 sentence description explaining what the resource does and why it is useful in this workspace. Make the description insightful, professional, and clear.
+- Do NOT output a separate "Domain" or "URL" column with long raw URLs.
+- NEVER use pipe symbols '|' inside any cell content. If needed, use a hyphen '-' or colon ':'.
+- Exactly 3 columns per row. Do not add extra columns or trailing pipes.
+- Output ONLY the clean Markdown text without wrapping codeblocks (no \`\`\`markdown).`;
+
+      let markdown = '';
+      try {
+        markdown = await import('../ai/llm').then(m => m.callLLM(prompt));
+        if (markdown.startsWith('```markdown')) {
+          markdown = markdown.replace(/^```markdown\s*/i, '').replace(/```\s*$/, '').trim();
+        } else if (markdown.startsWith('```md')) {
+          markdown = markdown.replace(/^```md\s*/i, '').replace(/```\s*$/, '').trim();
+        } else if (markdown.startsWith('```') && markdown.endsWith('```')) {
+          markdown = markdown.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
+        }
+      } catch (err: any) {
+        console.warn("LLM summary generation failed, using structured local summary:", err);
+        markdown = generateLocalWorkspaceSummary(showShareModal.folderName, selectedTabs);
+      }
+
       setShareViewMode('preview');
       setShareMarkdown(markdown);
     } catch (e: any) {
@@ -2673,7 +2723,7 @@ Rules for the table:
         {showShareModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowShareModal(null)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[680px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90 flex flex-col max-h-[85vh]">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[760px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90 flex flex-col max-h-[85vh]">
               <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08] shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
@@ -2707,7 +2757,7 @@ Rules for the table:
                     <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg p-1.5">
                       <span className="text-xs text-blue-300 font-mono truncate select-all flex-1 px-1">{shareLink}</span>
                       <button 
-                        onClick={() => { navigator.clipboard.writeText(shareLink); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }}
+                        onClick={() => { navigator.clipboard.writeText(shareLink); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }} 
                         className="px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-semibold shrink-0 transition-colors flex items-center gap-1"
                       >
                         {shareCopied ? <><Check className="w-3 h-3 text-emerald-400" /> Copied</> : <><Copy className="w-3 h-3" /> Copy</>}
@@ -2772,7 +2822,7 @@ Rules for the table:
                       <span className="text-[10px] text-white/40 font-medium">Workspace Summary</span>
                     </div>
                     {shareViewMode === 'preview' ? (
-                      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide max-h-[360px]">
+                      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide max-h-[460px]">
                         <MarkdownPreview content={shareMarkdown} />
                       </div>
                     ) : (
@@ -3499,8 +3549,17 @@ function CustomDateTimePicker({ value, onChange }: { value: Date[], onChange: (d
 
 
 const MarkdownPreview = ({ content }: { content: string }) => {
-  const sanitizedContent = sanitizeStreamChunk(content || '');
-  const lines = sanitizedContent.split('\n');
+  let cleaned = sanitizeStreamChunk(content || '').trim();
+  // Strip code block fence if output was wrapped in ```markdown or ```
+  if (cleaned.startsWith('```markdown')) {
+    cleaned = cleaned.replace(/^```markdown\s*/i, '').replace(/```\s*$/, '').trim();
+  } else if (cleaned.startsWith('```md')) {
+    cleaned = cleaned.replace(/^```md\s*/i, '').replace(/```\s*$/, '').trim();
+  } else if (cleaned.startsWith('```') && cleaned.endsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
+  }
+
+  const lines = cleaned.split('\n');
   const rendered: React.ReactNode[] = [];
   
   let currentTableHeaders: string[] = [];
@@ -3509,6 +3568,48 @@ const MarkdownPreview = ({ content }: { content: string }) => {
 
   let currentListItems: React.ReactNode[] = [];
   let isInsideList = false;
+
+  // Bracket/Parentheses-aware line splitter that NEVER breaks inside [Title | Part 2](url) or `code | pipe`
+  const splitTableLine = (rawLine: string): string[] => {
+    let line = rawLine.trim();
+    if (line.startsWith('|')) line = line.slice(1);
+    if (line.endsWith('|')) line = line.slice(0, -1);
+
+    const cells: string[] = [];
+    let current = '';
+    let inBracket = 0;      // inside [ ... ]
+    let inParen = 0;        // inside ( ... )
+    let inBacktick = false; // inside ` ... `
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const prev = i > 0 ? line[i - 1] : '';
+
+      if (char === '`' && prev !== '\\') {
+        inBacktick = !inBacktick;
+        current += char;
+      } else if (!inBacktick && char === '[' && prev !== '\\') {
+        inBracket++;
+        current += char;
+      } else if (!inBacktick && char === ']' && prev !== '\\') {
+        if (inBracket > 0) inBracket--;
+        current += char;
+      } else if (!inBacktick && char === '(' && inBracket === 0 && prev !== '\\') {
+        inParen++;
+        current += char;
+      } else if (!inBacktick && char === ')' && inBracket === 0 && prev !== '\\') {
+        if (inParen > 0) inParen--;
+        current += char;
+      } else if (char === '|' && !inBacktick && inBracket === 0 && inParen === 0) {
+        cells.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    cells.push(current.trim());
+    return cells;
+  };
 
   const renderInline = (text: string): React.ReactNode[] => {
     if (!text || !text.trim()) {
@@ -3524,9 +3625,10 @@ const MarkdownPreview = ({ content }: { content: string }) => {
       if (part.startsWith('[') && part.includes('](') && part.endsWith(')')) {
         const closeBraceIdx = part.indexOf(']');
         if (closeBraceIdx !== -1) {
-          const label = part.slice(1, closeBraceIdx).trim();
+          let label = part.slice(1, closeBraceIdx).trim();
           const url = part.slice(closeBraceIdx + 2, -1).trim();
           const safeUrl = sanitizeUrl(url);
+          label = label.replace(/\|/g, '-');
           return (
             <a 
               key={idx} 
@@ -3543,16 +3645,20 @@ const MarkdownPreview = ({ content }: { content: string }) => {
       }
       if (part.startsWith('http://') || part.startsWith('https://')) {
         const safeUrl = sanitizeUrl(part);
+        let displayUrl = safeUrl.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+        if (displayUrl.length > 38) {
+          displayUrl = displayUrl.slice(0, 36) + '…';
+        }
         return (
           <a 
             key={idx} 
             href={safeUrl} 
             target="_blank" 
             rel="noopener noreferrer" 
-            className="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-medium break-words [word-break:break-word]"
+            className="text-blue-400 hover:text-blue-300 hover:underline transition-colors font-medium break-all"
             title={safeUrl}
           >
-            {part}
+            {displayUrl}
           </a>
         );
       }
@@ -3564,22 +3670,24 @@ const MarkdownPreview = ({ content }: { content: string }) => {
     if (currentTableHeaders.length > 0 || currentTableRows.length > 0) {
       const colCount = currentTableHeaders.length || (currentTableRows[0]?.length ?? 3);
       rendered.push(
-        <div key={`table-${key}`} className="overflow-x-auto my-3 rounded-xl border border-white/10 bg-white/[0.02] shadow-sm">
+        <div key={`table-${key}`} className="overflow-x-auto my-3 rounded-xl border border-white/10 bg-[#0c1017]/70 shadow-sm max-w-full">
           <table className="w-full text-left border-collapse text-xs table-fixed">
             {currentTableHeaders.length > 0 && (
-              <thead>
-                <tr className="bg-white/[0.05] border-b border-white/10">
+              <thead className="sticky top-0 z-10 bg-[#121722] border-b border-white/10 shadow-sm backdrop-blur">
+                <tr className="bg-white/[0.04]">
                   {currentTableHeaders.map((h, i) => {
                     let colWidth = '';
                     if (colCount === 3) {
-                      if (i === 0) colWidth = 'w-[28%] min-w-[120px]';
-                      else if (i === 1) colWidth = 'w-[28%] min-w-[130px]';
-                      else colWidth = 'w-[44%] min-w-[180px]';
+                      if (i === 0) colWidth = 'w-[26%] min-w-[130px]';
+                      else if (i === 1) colWidth = 'w-[22%] min-w-[110px]';
+                      else colWidth = 'w-[52%] min-w-[220px]';
                     } else if (colCount === 2) {
                       colWidth = i === 0 ? 'w-[35%]' : 'w-[65%]';
+                    } else {
+                      colWidth = 'min-w-[120px]';
                     }
                     return (
-                      <th key={i} className={`p-3 font-semibold text-white/90 uppercase tracking-wider text-[11px] ${colWidth}`}>
+                      <th key={i} className={`p-3 font-semibold text-white/90 uppercase tracking-wider text-[10.5px] ${colWidth}`}>
                         {renderInline(h)}
                       </th>
                     );
@@ -3587,14 +3695,23 @@ const MarkdownPreview = ({ content }: { content: string }) => {
                 </tr>
               </thead>
             )}
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-white/[0.05]">
               {currentTableRows.map((row, ri) => (
-                <tr key={ri} className="hover:bg-white/[0.02] transition-colors">
-                  {row.map((cell, ci) => (
-                    <td key={ci} className="p-3 text-white/80 align-top leading-relaxed text-xs break-words">
-                      {renderInline(cell)}
-                    </td>
-                  ))}
+                <tr key={ri} className="hover:bg-white/[0.03] transition-colors">
+                  {row.map((cell, ci) => {
+                    const isCategoryCol = colCount === 3 && ci === 1;
+                    return (
+                      <td key={ci} className="p-3 text-white/80 align-top leading-relaxed text-xs break-words">
+                        {isCategoryCol && cell && !cell.startsWith('http') && !cell.startsWith('[') ? (
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-[11px] font-medium text-white/70">
+                            {renderInline(cell)}
+                          </span>
+                        ) : (
+                          renderInline(cell)
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -3623,11 +3740,7 @@ const MarkdownPreview = ({ content }: { content: string }) => {
     const line = lines[i].trim();
     
     if (line.includes('|')) {
-      let rawLine = line;
-      if (rawLine.startsWith('|')) rawLine = rawLine.substring(1);
-      if (rawLine.endsWith('|')) rawLine = rawLine.substring(0, rawLine.length - 1);
-      
-      let cells = rawLine.split('|').map(c => c.trim());
+      let cells = splitTableLine(line);
       while (cells.length > 0 && cells[cells.length - 1] === '') {
         cells.pop();
       }
@@ -3650,7 +3763,11 @@ const MarkdownPreview = ({ content }: { content: string }) => {
         } else {
           if (currentTableHeaders.length > 0) {
             if (cells.length > currentTableHeaders.length) {
-              cells = cells.slice(0, currentTableHeaders.length);
+              // Merge any excess cells into the description column so nothing is discarded or misaligned
+              const headCount = currentTableHeaders.length;
+              const normalized = cells.slice(0, headCount - 1);
+              normalized.push(cells.slice(headCount - 1).join(' - '));
+              cells = normalized;
             } else {
               while (cells.length < currentTableHeaders.length) {
                 cells.push('');
@@ -3982,12 +4099,7 @@ function SmartLauncher({
   );
 }
 
-interface FolderSession {
-  id: string;
-  name: string;
-  tabs: { title: string; url: string; favIconUrl?: string }[];
-  isLocked?: boolean;
-}
+type FolderSession = WorkspaceSession;
 
 interface MapNode {
   id: string;
@@ -4104,6 +4216,16 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   const [savedPositions, setSavedPositions] = useState<Record<string, {x: number, y: number}>>({});
   const [expandedMapFolders, setExpandedMapFolders] = useState<Set<string>>(new Set());
 
+  // Unlock Modal states for Workspace Map
+  const [unlockModalFolder, setUnlockModalFolder] = useState<FolderSession | null>(null);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [showUnlockPassword, setShowUnlockPassword] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+  const [isRecoveryMode, setIsRecoveryMode] = useState<'verify_word' | 'new_password' | null>(null);
+  const [recoveryWordInput, setRecoveryWordInput] = useState('');
+  const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
+  const [showRecoveryNewPassword, setShowRecoveryNewPassword] = useState(false);
+
   const isLayoutFrozenRef = useRef(isLayoutFrozen);
   const savedPositionsRef = useRef(savedPositions);
   const expandedMapFoldersRef = useRef(expandedMapFolders);
@@ -4142,10 +4264,99 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     }
   };
 
+  const handleUnlockSubmit = async () => {
+    if (!unlockModalFolder) return;
+    if (isRecoveryMode === 'verify_word') {
+      const enteredWord = recoveryWordInput.trim().toLowerCase();
+      const enteredHash = await sha256(unlockModalFolder.id + enteredWord);
+      chrome.runtime.sendMessage({
+        type: 'VERIFY_RECOVERY_WORD',
+        sessionId: unlockModalFolder.id,
+        recoveryWordHash: enteredHash
+      }, (isCorrect) => {
+        if (isCorrect) {
+          setIsRecoveryMode('new_password');
+          setUnlockError('');
+          showToast('Recovery Verified', 'Security verification successful. Please set your new password.', 'success');
+        } else {
+          setUnlockError('Incorrect recovery word.');
+        }
+      });
+    } else if (isRecoveryMode === 'new_password') {
+      const hashedNewPassword = await sha256(unlockModalFolder.id + recoveryNewPassword);
+      chrome.runtime.sendMessage({ 
+        type: 'UPDATE_FOLDER_LOCK', 
+        sessionId: unlockModalFolder.id, 
+        password: hashedNewPassword, 
+        autoLockEnabled: unlockModalFolder.autoLockEnabled 
+      }, () => {
+        chrome.runtime.sendMessage({ 
+          type: 'UNLOCK_FOLDER', 
+          sessionId: unlockModalFolder.id, 
+          passwordHash: hashedNewPassword 
+        }, (res) => {
+          if (res && res.error) {
+            setUnlockError(res.error);
+          } else {
+            const unlockedId = unlockModalFolder.id;
+            setUnlockModalFolder(null);
+            setIsRecoveryMode(null);
+            showToast('Password Reset', 'Folder password updated and unlocked successfully.', 'success');
+            chrome.runtime.sendMessage({ type: 'GET_SESSIONS' }, (response) => {
+              if (response && Array.isArray(response)) {
+                const typed = response as FolderSession[];
+                setFoldersList(typed);
+                const nextExpanded = new Set(expandedMapFoldersRef.current);
+                nextExpanded.add(unlockedId);
+                setExpandedMapFolders(nextExpanded);
+                initializeLayout(typed, Array.from(visibleFolderIdsRef.current), isLayoutFrozenRef.current, savedPositionsRef.current, nextExpanded);
+              }
+            });
+          }
+        });
+      });
+    } else {
+      const enteredHash = await sha256(unlockModalFolder.id + unlockPassword);
+      chrome.runtime.sendMessage({ 
+        type: 'UNLOCK_FOLDER', 
+        sessionId: unlockModalFolder.id, 
+        passwordHash: enteredHash 
+      }, (res) => {
+        if (res && res.error) {
+          setUnlockError(res.error);
+        } else {
+          const unlockedId = unlockModalFolder.id;
+          const unlockedName = unlockModalFolder.name;
+          setUnlockModalFolder(null);
+          showToast('Folder Unlocked', `Successfully unlocked "${unlockedName}".`, 'success');
+          chrome.runtime.sendMessage({ type: 'GET_SESSIONS' }, (response) => {
+            if (response && Array.isArray(response)) {
+              const typed = response as FolderSession[];
+              setFoldersList(typed);
+              const nextExpanded = new Set(expandedMapFoldersRef.current);
+              nextExpanded.add(unlockedId);
+              setExpandedMapFolders(nextExpanded);
+              initializeLayout(typed, Array.from(visibleFolderIdsRef.current), isLayoutFrozenRef.current, savedPositionsRef.current, nextExpanded);
+            }
+          });
+        }
+      });
+    }
+  };
+
   const handleFolderClick = (folderId: string) => {
     if (draggedRef.current) return;
-    const folderNode = nodes.find(n => n.id === folderId);
-    if (folderNode?.isLocked) return;
+    const folderData = foldersList.find(f => f.id === folderId);
+    if (folderData?.isLocked) {
+      setUnlockModalFolder(folderData);
+      setUnlockPassword('');
+      setRecoveryWordInput('');
+      setUnlockError('');
+      setIsRecoveryMode(null);
+      setShowUnlockPassword(false);
+      setShowRecoveryNewPassword(false);
+      return;
+    }
 
     const isExpanded = expandedMapFolders.has(folderId);
     if (isExpanded) {
@@ -4157,25 +4368,27 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
   };
 
   const handleFolderDoubleClick = (folderId: string) => {
-    const folderNode = nodes.find(n => n.id === folderId);
-    if (folderNode?.isLocked) {
-      showToast('Folder Protected', 'This folder is password locked. Please unlock it in Folders view.', 'error');
+    const folderData = foldersList.find(f => f.id === folderId);
+    if (folderData?.isLocked) {
+      setUnlockModalFolder(folderData);
+      setUnlockPassword('');
+      setRecoveryWordInput('');
+      setUnlockError('');
+      setIsRecoveryMode(null);
+      setShowUnlockPassword(false);
+      setShowRecoveryNewPassword(false);
       return;
     }
 
     const isExpanded = expandedMapFolders.has(folderId);
     if (isExpanded) return;
 
+    const folderNode = nodes.find(n => n.id === folderId);
+    if (!folderNode || !folderData) return;
+
     const nextSet = new Set(expandedMapFolders);
     nextSet.add(folderId);
     setExpandedMapFolders(nextSet);
-
-    // Get the folder node to see its current x, y
-    if (!folderNode) return;
-
-    // Expand: Create tab nodes around the folder's current x, y
-    const folderData = foldersList.find(f => f.id === folderId);
-    if (!folderData) return;
 
     const tabs = folderData.tabs || [];
     const tabCount = tabs.length;
@@ -4354,8 +4567,20 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     if (e.button !== 0) return; // Only respond to left click for dragging
     
     const targetNode = nodes.find(n => n.id === nodeId);
-    if (targetNode && targetNode.type === 'folder' && targetNode.isLocked) {
+    if (!targetNode) return;
+
+    if (targetNode.type === 'folder' && targetNode.isLocked) {
+      showToast('Folder Locked', `"${targetNode.label}" is password locked. Double-click to unlock.`, 'info');
       return;
+    }
+
+    if (targetNode.type === 'tab' && targetNode.parentId) {
+      const parentFolder = nodes.find(n => n.id === targetNode.parentId) || foldersList.find(f => f.id === targetNode.parentId);
+      if (parentFolder?.isLocked) {
+        const folderTitle = (parentFolder as any)?.name || (parentFolder as any)?.label || 'Folder';
+        showToast('Folder Locked', `"${folderTitle}" is locked. Tabs cannot be moved or dragged.`, 'info');
+        return;
+      }
     }
 
     e.preventDefault();
@@ -4423,6 +4648,15 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
     if (draggedNodeId) {
       const draggedNode = nodes.find(n => n.id === draggedNodeId);
       if (draggedNode && draggedNode.type === 'tab' && draggedNode.parentId) {
+        const sourceFolder = foldersList.find(f => f.id === draggedNode.parentId);
+        if (sourceFolder?.isLocked) {
+          showToast("Folder Protected", `Cannot move tab out of "${sourceFolder.name}". Folder is password locked.`, "error");
+          setDraggedNodeId(null);
+          setIsPanning(false);
+          initializeLayout(foldersList, Array.from(visibleFolderIds));
+          return;
+        }
+
         // Check if dropped near any folder node (excluding its own parent)
         const targetFolder = nodes.find(n => 
           n.type === 'folder' && 
@@ -4432,7 +4666,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
 
         if (targetFolder) {
           if (targetFolder.isLocked) {
-            showToast("Folder Protected", `Cannot move tab. "${targetFolder.label}" is password locked.`, "error");
+            showToast("Folder Protected", `Cannot move tab into "${targetFolder.label}". Folder is password locked.`, "error");
             setDraggedNodeId(null);
             setIsPanning(false);
             initializeLayout(foldersList, Array.from(visibleFolderIds));
@@ -4795,7 +5029,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                           onClick={() => setSidebarPage(page)}
                           className={`w-6 h-6 rounded-md text-[11px] font-semibold transition-all flex items-center justify-center cursor-pointer ${
                             activeSidebarPage === page
-                              ? 'bg-blue-500 text-white shadow-sm'
+                              ? 'bg-white/15 text-white border border-white/20'
                               : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white'
                           }`}
                         >
@@ -4967,7 +5201,7 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                     onMouseEnter={() => setHoveredNode(node)}
                     onMouseLeave={() => setHoveredNode(null)}
                   >
-                    {isDropTarget && (
+                    {isDropTarget && !node.isLocked && (
                       <>
                         <circle 
                           r={folderSize + 22} 
@@ -4991,12 +5225,36 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                         </text>
                       </>
                     )}
-                    <circle r={folderSize + 4} fill={isDropTarget ? '#10b981' : node.color} opacity={isDropTarget ? 0.35 : 0.12} style={{ filter: glow !== 'none' || isDropTarget ? 'blur(4px)' : 'none' }} />
+                    {isDropTarget && node.isLocked && (
+                      <>
+                        <circle 
+                          r={folderSize + 22} 
+                          fill="none" 
+                          stroke="#ef4444" 
+                          strokeWidth="2.5" 
+                          strokeDasharray="4,4" 
+                          opacity="0.9"
+                          style={{ animation: 'dash 3s linear infinite' }} 
+                        />
+                        <circle r={folderSize + 14} fill="#ef4444" opacity="0.2" />
+                        <text
+                          y={-(folderSize + 12)}
+                          textAnchor="middle"
+                          fill="#f87171"
+                          fontSize="9"
+                          fontWeight="bold"
+                          className="pointer-events-none select-none font-sans drop-shadow-md"
+                        >
+                          Folder Locked 🔒
+                        </text>
+                      </>
+                    )}
+                    <circle r={folderSize + 4} fill={isDropTarget ? (node.isLocked ? '#ef4444' : '#10b981') : (node.isLocked ? '#ef4444' : node.color)} opacity={isDropTarget ? 0.35 : (node.isLocked ? 0.25 : 0.12)} style={{ filter: glow !== 'none' || isDropTarget ? 'blur(4px)' : 'none' }} />
                     <circle
                       r={folderSize}
                       fill="#0f0e15"
-                      stroke={isDropTarget ? '#10b981' : node.color}
-                      strokeWidth={isDropTarget ? "3.5" : "2.5"}
+                      stroke={isDropTarget ? (node.isLocked ? '#ef4444' : '#10b981') : (node.isLocked ? '#ef4444' : node.color)}
+                      strokeWidth={isDropTarget ? "3.5" : (node.isLocked ? "3" : "2.5")}
                       className="transition-all duration-300"
                       style={{ transform: `scale(${isDropTarget ? 1.2 : scale})` }}
                     />
@@ -5013,23 +5271,25 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
                     <text
                       y={folderSize + 18}
                       textAnchor="middle"
-                      fill={isDropTarget ? '#34d399' : 'white'}
+                      fill={isDropTarget ? (node.isLocked ? '#f87171' : '#34d399') : (node.isLocked ? '#fca5a5' : 'white')}
                       fontSize="10"
-                      fontWeight={isDropTarget ? "bold" : "500"}
+                      fontWeight={isDropTarget || node.isLocked ? "bold" : "500"}
                       className="pointer-events-none select-none drop-shadow-md bg-black/60 font-sans"
                     >
-                      {node.label}
+                      {node.label}{node.isLocked ? ' 🔒' : ''}
                     </text>
                   </g>
                 );
               } else {
                 const isBeingDragged = draggedNodeId === node.id;
+                const parentFolder = nodes.find(p => p.id === node.parentId) || foldersList.find(f => f.id === node.parentId);
+                const isParentLocked = !!parentFolder?.isLocked;
                 return (
                   <g
                     key={node.id}
                     transform={`translate(${node.x}, ${node.y})`}
-                    className="cursor-pointer transition-transform duration-300"
-                    style={{ opacity }}
+                    className={isParentLocked ? "cursor-not-allowed transition-transform duration-300 opacity-60" : "cursor-pointer transition-transform duration-300"}
+                    style={{ opacity: isParentLocked ? 0.5 : opacity }}
                     onMouseDown={(e) => handleMouseDown(node.id, e)}
                     onDoubleClick={() => handleDoubleClick(node.url)}
                     onMouseEnter={() => setHoveredNode(node)}
@@ -5167,6 +5427,113 @@ function WorkspaceMapView({ showToast }: { showToast: (title: string, descriptio
             )}
           </div>
         )}
+
+        {/* Workspace Map Folder Unlock Modal */}
+        <AnimatePresence>
+          {unlockModalFolder && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setUnlockModalFolder(null); setIsRecoveryMode(null); }} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[320px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90 text-center">
+                <button onClick={() => { setUnlockModalFolder(null); setIsRecoveryMode(null); }} className="absolute top-3.5 right-3.5 w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+                
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center mx-auto mb-2 text-indigo-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <h3 className="text-xs font-semibold text-white mb-0.5">
+                  {isRecoveryMode === 'verify_word' ? 'Verify Recovery' : isRecoveryMode === 'new_password' ? 'Reset Password' : `Unlock "${unlockModalFolder.name}"`}
+                </h3>
+                <p className="text-[11px] text-white/50 mb-3 leading-normal">
+                  {isRecoveryMode === 'verify_word' ? 'Enter secret recovery word to reset password.' : isRecoveryMode === 'new_password' ? 'Enter a new password.' : 'Enter password to unlock and manage this folder.'}
+                </p>
+                
+                <div className="space-y-3 mb-3.5 text-left">
+                  {isRecoveryMode === 'verify_word' ? (
+                    unlockModalFolder.recoveryWord ? (
+                      <input 
+                        type="text" 
+                        placeholder="Recovery Word" 
+                        value={recoveryWordInput} 
+                        onChange={e => setRecoveryWordInput(e.target.value)} 
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleUnlockSubmit();
+                        }}
+                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-all text-center" 
+                        autoFocus
+                      />
+                    ) : (
+                      <p className="text-[10px] text-red-400/80 text-center bg-red-400/10 border border-red-400/20 p-2 rounded-lg leading-normal">
+                        No recovery word set up. Recovery not possible.
+                      </p>
+                    )
+                  ) : isRecoveryMode === 'new_password' ? (
+                    <div className="relative flex items-center">
+                      <input 
+                        type={showRecoveryNewPassword ? "text" : "password"} 
+                        placeholder="New Password" 
+                        value={recoveryNewPassword} 
+                        onChange={e => setRecoveryNewPassword(e.target.value)} 
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleUnlockSubmit();
+                        }}
+                        className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-9 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-all" 
+                        autoFocus
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowRecoveryNewPassword(!showRecoveryNewPassword)}
+                        className="absolute right-2.5 text-white/40 hover:text-white transition-colors"
+                      >
+                        {showRecoveryNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative flex items-center">
+                      <input 
+                        type={showUnlockPassword ? "text" : "password"} 
+                        placeholder="Password" 
+                        value={unlockPassword} 
+                        onChange={e => setUnlockPassword(e.target.value)} 
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleUnlockSubmit();
+                        }}
+                        className="w-full bg-black/40 border border-white/10 rounded-lg pl-3 pr-9 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 transition-all" 
+                        autoFocus
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setShowUnlockPassword(!showUnlockPassword)}
+                        className="absolute right-2.5 text-white/40 hover:text-white transition-colors"
+                      >
+                        {showUnlockPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  )}
+                  {unlockError && <p className="text-[11px] text-red-400 text-center">{unlockError}</p>}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {(!isRecoveryMode || isRecoveryMode !== 'verify_word' || unlockModalFolder.recoveryWord) && (
+                    <button 
+                      onClick={handleUnlockSubmit} 
+                      className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 cursor-pointer"
+                    >
+                      {isRecoveryMode === 'verify_word' ? 'Verify Word' : isRecoveryMode === 'new_password' ? 'Reset Lock' : 'Unlock'}
+                    </button>
+                  )}
+                  {!isRecoveryMode ? (
+                    unlockModalFolder.password && (
+                      <button onClick={() => { setIsRecoveryMode('verify_word'); setUnlockPassword(''); setRecoveryWordInput(''); setRecoveryNewPassword(''); setUnlockError(''); }} className="text-[11px] text-white/40 hover:text-white transition-colors">Forgot Password?</button>
+                    )
+                  ) : (
+                    <button onClick={() => { setIsRecoveryMode(null); setUnlockError(''); }} className="text-[11px] text-indigo-400/80 hover:text-indigo-400 transition-colors">Back to Unlock</button>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
       </div>
     </div>

@@ -155,15 +155,23 @@ if (typeof window !== 'undefined') {
             const sessions = await getSessions();
             const target = sessions.find(s => s.id === msg.sessionId);
             if (target) {
-              target.tabs = target.tabs.filter(t => t.url !== msg.url);
-              await saveSession(target);
+              if (target.isLocked) {
+                response = { success: false, error: 'Folder is locked. Please unlock it first.' };
+              } else {
+                target.tabs = target.tabs.filter(t => t.url !== msg.url);
+                await saveSession(target);
+                response = { success: true };
+              }
+            } else {
+              response = { success: false, error: 'Folder not found' };
             }
-            response = { success: true };
           } else if (msg?.type === 'ADD_TAB_TO_FOLDER') {
             const sessions = await getSessions();
             const target = sessions.find(s => s.id === msg.sessionId);
             let added = false;
-            if (target && msg.tab?.url) {
+            if (target?.isLocked) {
+              response = { success: false, error: 'Folder is locked. Please unlock it first.', added: false };
+            } else if (target && msg.tab?.url) {
               const url = sanitizeUrl(msg.tab.url);
               if (isValidUrl(url)) {
                 if (!target.tabs.some(t => isSameUrl(t.url, url))) {
@@ -176,17 +184,21 @@ if (typeof window !== 'undefined') {
                   added = true;
                 }
               }
+              messageListeners.forEach(l => {
+                try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+              });
+              response = { success: true, added };
+            } else {
+              response = { success: false, error: 'Target folder not found', added: false };
             }
-            messageListeners.forEach(l => {
-              try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
-            });
-            response = { success: true, added };
           } else if (msg?.type === 'MOVE_TAB') {
             const sessions = await getSessions();
             const source = sessions.find(s => s.id === msg.sourceSessionId);
             const target = sessions.find(s => s.id === msg.targetSessionId);
             if (!source || !target) {
               response = { success: false, error: 'Folder not found' };
+            } else if (source.isLocked || target.isLocked) {
+              response = { success: false, error: 'Folder is locked. Please unlock it first.' };
             } else {
               const tabIndex = source.tabs.findIndex(t => t.url === msg.url || isSameUrl(t.url, msg.url));
               if (tabIndex === -1) {
@@ -209,7 +221,9 @@ if (typeof window !== 'undefined') {
             const sessions = await getSessions();
             const target = sessions.find(s => s.id === msg.sessionId);
             let addedCount = 0;
-            if (target) {
+            if (target?.isLocked) {
+              response = { success: false, error: 'Folder is locked. Please unlock it first.' };
+            } else if (target) {
               const tabsToScan = mockTabsState.length > 0 ? mockTabsState : [
                 { url: 'https://news.ycombinator.com', title: 'Hacker News', favIconUrl: 'https://news.ycombinator.com/favicon.ico' },
                 { url: 'https://developer.mozilla.org', title: 'MDN Web Docs', favIconUrl: 'https://developer.mozilla.org/favicon.ico' },
@@ -226,8 +240,10 @@ if (typeof window !== 'undefined') {
               messageListeners.forEach(l => {
                 try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
               });
+              response = { success: true, addedCount, validCount: tabsToScan.length };
+            } else {
+              response = { success: false, error: 'Folder not found' };
             }
-            response = { success: true, addedCount, validCount: target ? target.tabs.length : 0 };
           } else if (msg?.type === 'OPEN_FOLDER_TABS') {
             const sessions = await getSessions();
             const target = sessions.find(s => s.id === msg.sessionId);
@@ -408,7 +424,7 @@ if (typeof window !== 'undefined') {
                   const sessions = await getSessions();
                   const source = sessions.find(s => s.id === cmd.args.sourceSessionId || s.name.toLowerCase() === (cmd.args.source || '').toLowerCase());
                   const target = sessions.find(s => s.id === cmd.args.targetSessionId || s.name.toLowerCase() === (cmd.args.target || '').toLowerCase());
-                  if (source && target && cmd.args.url) {
+                  if (source && target && !source.isLocked && !target.isLocked && cmd.args.url) {
                     const tabIdx = source.tabs.findIndex(t => t.url === cmd.args.url || isSameUrl(t.url, cmd.args.url));
                     if (tabIdx !== -1) {
                       const [moved] = source.tabs.splice(tabIdx, 1);

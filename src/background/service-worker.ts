@@ -206,7 +206,7 @@ async function handleMessage(message: any) {
     return await handleAddTab(message.sessionId, message.tab, message.passwordHash);
   }
   if (message.type === 'SCAN_TABS_TO_FOLDER') {
-    return await handleScanTabs(message.sessionId);
+    return await handleScanTabs(message.sessionId, message.passwordHash);
   }
   if (message.type === 'SET_FOLDER_TIMER') {
     return await handleSetFolderTimer(message.sessionId, message.action, message.times);
@@ -233,7 +233,7 @@ async function handleMessage(message: any) {
     return await handleToggleStarTab(message.sessionId, message.url);
   }
   if (message.type === 'REMOVE_DUPLICATE_TABS') {
-    return await handleRemoveDuplicateTabs(message.sessionId);
+    return await handleRemoveDuplicateTabs(message.sessionId, message.passwordHash);
   }
   if (message.type === 'CLOSE_FOLDER_TABS') {
     return await handleCloseFolderTabs(message.sessionId, message.passwordHash);
@@ -715,11 +715,12 @@ async function handleToggleStarTab(sessionId: string, url: string) {
   });
 }
 
-async function handleScanTabs(sessionId: string) {
+async function handleScanTabs(sessionId: string, passwordHash?: string) {
   return withSessionLock(async () => {
     const sessions = await getSessions();
     const session = sessions.find(s => s.id === sessionId);
     if (!session) throw new Error("Folder not found");
+    verifySessionAccess(session, passwordHash);
 
     const tabs = await chrome.tabs.query({ currentWindow: true });
     const validTabs = tabs.filter(t => t.url && !t.url.startsWith('chrome') && isValidUrl(t.url));
@@ -742,11 +743,12 @@ async function handleScanTabs(sessionId: string) {
   });
 }
 
-async function handleRemoveDuplicateTabs(sessionId: string) {
+async function handleRemoveDuplicateTabs(sessionId: string, passwordHash?: string) {
   return withSessionLock(async () => {
     const sessions = await getSessions();
     const session = sessions.find(s => s.id === sessionId);
     if (!session) throw new Error("Folder not found");
+    verifySessionAccess(session, passwordHash);
 
     const uniqueUrls = new Set<string>();
     const newTabs: any[] = [];

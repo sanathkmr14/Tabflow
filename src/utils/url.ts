@@ -133,3 +133,11 @@ export function getCleanDomain(url?: string): string {
     return url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
   }
 }
+
+/**
+ * Strips pipes '|' and cleans tab titles for safe embedding into Markdown tables and prompts.
+ */
+export function sanitizeTabTitleForTable(title?: string): string {
+  const clean = cleanTabTitle(title);
+  return clean.replace(/\|/g, '-').replace(/\s+/g, ' ').trim();
+}
