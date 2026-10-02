@@ -937,6 +937,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
           setUnlockError(res.error);
         } else {
           loadFolders();
+          setExpandedFolder(showUnlockModal.id);
           setShowUnlockModal(null);
           showToast('Folder Unlocked', `Successfully unlocked "${showUnlockModal.name}".`, 'success');
         }
@@ -945,6 +946,7 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
   };
 
   const hasAutoLocked = useRef(false);
+  const initialFolderCheckedRef = useRef(false);
 
   const loadFolders = () => {
     chrome.runtime.sendMessage({ type: 'GET_SESSIONS' }, (sessions) => {
@@ -961,6 +963,31 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
         }
 
         setFolders([...sessions]);
+
+        if (!initialFolderCheckedRef.current) {
+          initialFolderCheckedRef.current = true;
+          const params = new URLSearchParams(window.location.search);
+          const targetFolderId = params.get('folder');
+          if (targetFolderId) {
+            const target = sessions.find(s => s.id === targetFolderId);
+            if (target) {
+              if (target.isLocked) {
+                setShowUnlockModal(target);
+                setUnlockPassword('');
+                setRecoveryWordInput('');
+                setUnlockError('');
+                setIsRecoveryMode(null);
+                setShowUnlockPassword(false);
+                setShowRecoveryNewPassword(false);
+              } else {
+                setExpandedFolder(target.id);
+              }
+            }
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete('folder');
+            window.history.replaceState({}, '', cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : ''));
+          }
+        }
       }
     });
   };
@@ -973,9 +1000,19 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
       if (msg.type === 'REFRESH_FOLDERS') loadFolders();
     };
     chrome.runtime.onMessage.addListener(handleMessage);
-    const interval = setInterval(() => setFolders(f => [...f]), 60000);
+
+    const handleFocus = () => loadFolders();
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadFolders();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const interval = setInterval(() => loadFolders(), 20000);
     return () => {
       chrome.runtime.onMessage.removeListener(handleMessage);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
       clearInterval(interval);
     };
   }, []);
@@ -1718,6 +1755,14 @@ Strict Table Formatting Requirements:
                 setSelectedFolderIds(newSelected);
               } else if (!folder.isLocked) {
                 setExpandedFolder(expandedFolder === folder.id ? null : folder.id); 
+              } else {
+                setShowUnlockModal(folder);
+                setUnlockPassword('');
+                setRecoveryWordInput('');
+                setUnlockError('');
+                setIsRecoveryMode(null);
+                setShowUnlockPassword(false);
+                setShowRecoveryNewPassword(false);
               }
             }}
           >

@@ -169,13 +169,13 @@ if (typeof window !== 'undefined') {
             const sessions = await getSessions();
             const target = sessions.find(s => s.id === msg.sessionId);
             let added = false;
-            if (target?.isLocked) {
+            if (target?.isLocked && (!msg.passwordHash || (target.password && target.password !== msg.passwordHash))) {
               response = { success: false, error: 'Folder is locked. Please unlock it first.', added: false };
             } else if (target && msg.tab?.url) {
               const url = sanitizeUrl(msg.tab.url);
               if (isValidUrl(url)) {
                 if (!target.tabs.some(t => isSameUrl(t.url, url))) {
-                  target.tabs.push({
+                  target.tabs.unshift({
                     url,
                     title: cleanTabTitle(msg.tab.title || url),
                     favIconUrl: msg.tab.favIconUrl

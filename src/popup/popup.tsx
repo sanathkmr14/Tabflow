@@ -158,6 +158,20 @@ const Popup = () => {
   } | null>(null);
 
   const loadSessions = async () => {
+    try {
+      const response = await new Promise<any[]>((resolve) => {
+        chrome.runtime.sendMessage({ type: 'GET_SESSIONS' }, (res) => {
+          if (res && Array.isArray(res)) resolve(res);
+          else resolve([]);
+        });
+      });
+      if (response && response.length > 0) {
+        const pinnedSessions = response.filter(s => s.isPinned);
+        setSessions(pinnedSessions.slice(0, 5));
+        return;
+      }
+    } catch {}
+
     const allSessions = await getSessions();
     const pinnedSessions = allSessions.filter(s => s.isPinned);
     const displaySessions = pinnedSessions.slice(0, 5);
@@ -165,13 +179,16 @@ const Popup = () => {
   };
 
   useEffect(() => {
-    let mounted = true;
-    getSessions().then((allSessions) => {
-      if (!mounted) return;
-      const pinnedSessions = allSessions.filter(s => s.isPinned);
-      setSessions(pinnedSessions.slice(0, 5));
-    });
-    return () => { mounted = false; };
+    loadSessions();
+    const handleMsg = (msg: any) => {
+      if (msg?.type === 'REFRESH_FOLDERS') {
+        loadSessions();
+      }
+    };
+    chrome.runtime.onMessage.addListener(handleMsg);
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMsg);
+    };
   }, []);
 
   const openDashboard = (folderId?: string) => {
@@ -242,6 +259,14 @@ const Popup = () => {
 
         if (isCorrect) {
           correctHash = enteredHash;
+          // Immediately unlock folder so it doesn't require unlocking twice
+          await new Promise<void>((resolveUnlock) => {
+            chrome.runtime.sendMessage({
+              type: 'UNLOCK_FOLDER',
+              sessionId: session.id,
+              passwordHash: enteredHash
+            }, () => resolveUnlock());
+          });
           return null; // Success, closes modal
         } else {
           return "Incorrect password.";
@@ -249,7 +274,15 @@ const Popup = () => {
       }
     );
     
-    return verified ? correctHash : null;
+    if (verified && correctHash) {
+      // Optimistically update local UI state immediately
+      setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isLocked: false } : s));
+      loadSessions();
+      chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' });
+      return correctHash;
+    }
+    
+    return null;
   };
 
   const handleSaveTab = async (e: React.MouseEvent, session: WorkspaceSession) => {
@@ -258,7 +291,12 @@ const Popup = () => {
     const passwordHash = await verifyAndUnlockSession(session);
     if (passwordHash === null) return;
 
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url) {
+      const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      if (tabs && tabs.length > 0) tab = tabs[0];
+    }
+
     if (tab && tab.url) {
       if (!isValidUrl(tab.url)) {
         await showModalAlert("Cannot Save Tab", "Internal browser pages (like chrome:// or settings) cannot be saved.", "error");
@@ -275,11 +313,13 @@ const Popup = () => {
         } else if (res && !res.added) {
           await showModalAlert("Tab Already Saved", "This tab is already in the folder.", "info");
         } else {
-          await showModalAlert("Success", "Tab successfully added to workspace!", "success");
           chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' });
+          await showModalAlert("Success", `Tab successfully added to "${session.name}"!`, "success");
           window.close();
         }
       });
+    } else {
+      await showModalAlert("No Tab Detected", "Could not find an active web tab to save.", "error");
     }
   };
 
@@ -321,13 +361,8 @@ const Popup = () => {
     if (session.isLocked) {
       const passwordHash = await verifyAndUnlockSession(session);
       if (passwordHash !== null) {
-        chrome.runtime.sendMessage({ 
-          type: 'UNLOCK_FOLDER', 
-          sessionId: session.id, 
-          passwordHash 
-        }, async () => {
-          await loadSessions();
-        });
+        // verifyAndUnlockSession already verified, called UNLOCK_FOLDER, and updated state!
+        await loadSessions();
       }
     } else {
       const isPasswordSet = !!session.password;
@@ -337,7 +372,9 @@ const Popup = () => {
         return;
       }
       chrome.runtime.sendMessage({ type: 'LOCK_FOLDER', sessionId: session.id }, async () => {
+        setSessions(prev => prev.map(s => s.id === session.id ? { ...s, isLocked: true } : s));
         await loadSessions();
+        chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' });
       });
     }
   };
@@ -455,7 +492,7 @@ const Popup = () => {
                 <button 
                   onClick={(e) => handleToggleLock(e, session)}
                   className="p-1.5 hover:bg-white/10 rounded-full text-white/60 hover:text-white transition-colors"
-                  title={session.isLocked ? "Locked - Click to unlock in dashboard" : "Lock folder"}
+                  title={session.isLocked ? "Unlock folder" : "Lock folder"}
                 >
                   {session.isLocked ? <Lock className="w-3.5 h-3.5 text-red-400" /> : <Unlock className="w-3.5 h-3.5" />}
                 </button>

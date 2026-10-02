@@ -65,6 +65,18 @@ function checkIncognitoAllowed(): Promise<boolean> {
   });
 }
 
+async function broadcastRefresh() {
+  chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (tab.id && tab.url && (tab.url.includes(chrome.runtime.id) || tab.url.startsWith('chrome-extension://'))) {
+        chrome.tabs.sendMessage(tab.id, { type: 'REFRESH_FOLDERS' }).catch(() => {});
+      }
+    }
+  } catch {}
+}
+
 // Track tab lifecycle to trigger ingestion
 const tabTimes = new Map<number, number>();
 
@@ -549,13 +561,13 @@ async function handleAddTab(sessionId: string, tab: {url: string, title: string,
     if (!isValidUrl(url)) throw new Error("Invalid URL");
     
     if (!session.tabs.find(t => isSameUrl(t.url, url))) {
-      session.tabs.push({
+      session.tabs.unshift({
         url,
         title: cleanTabTitle(tab.title || url),
         favIconUrl: tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${encodeURIComponent(url)}&sz=32`
       });
       await saveSession(session);
-      chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
+      await broadcastRefresh();
       return { session, added: true };
     }
     return { session, added: false };
@@ -921,6 +933,7 @@ async function handleSetFolderLockState(sessionId: string, isLocked: boolean) {
 
   session.isLocked = isLocked;
   await saveSession(session);
+  await broadcastRefresh();
   return session;
 }
 
