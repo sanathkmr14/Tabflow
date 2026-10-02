@@ -1519,10 +1519,16 @@ Rules for the table:
       .filter(f => selectedExportFolders.has(f.id) || (f.tabs && f.tabs.some((t: any) => selectedExportTabs.has(`${f.id}_${t.url}`))))
       .map(f => {
         const exportedFolder = { ...f };
-        exportedFolder.tabs = (f.tabs || []).filter((t: any) => selectedExportTabs.has(`${f.id}_${t.url}`));
+        if (selectedExportFolders.has(f.id) && (!f.tabs || f.tabs.length === 0 || f.tabs.every((t: any) => selectedExportTabs.has(`${f.id}_${t.url}`)))) {
+          exportedFolder.tabs = f.tabs || [];
+        } else {
+          exportedFolder.tabs = (f.tabs || []).filter((t: any) => selectedExportTabs.has(`${f.id}_${t.url}`));
+        }
         delete exportedFolder.scheduledOpenTimes;
         delete exportedFolder.scheduledCloseTimes;
-        exportedFolder.tabs = exportedFolder.tabs.map((t: any) => {
+        delete exportedFolder.password;
+        delete exportedFolder.recoveryWord;
+        exportedFolder.tabs = (exportedFolder.tabs || []).map((t: any) => {
           const newTab = { ...t };
           delete newTab.scheduledOpenTimes;
           delete newTab.scheduledCloseTimes;
@@ -1539,7 +1545,7 @@ Rules for the table:
     a.click();
     URL.revokeObjectURL(url);
     setShowExportModal(false);
-    showToast('Folders Exported', 'Successfully downloaded selected folders as a JSON file.', 'success');
+    showToast('Folders Exported', `Successfully downloaded ${exportData.length} folder${exportData.length !== 1 ? 's' : ''} as a JSON file.`, 'success');
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1553,20 +1559,34 @@ Rules for the table:
         if (!Array.isArray(json)) throw new Error('Invalid export file');
         
         const db = await import('@/storage/db');
+        let count = 0;
         for (const folder of json) {
-          if (!folder.name || !folder.tabs) continue;
-          folder.id = crypto.randomUUID();
-          delete folder.scheduledOpenTimes;
-          delete folder.scheduledCloseTimes;
-          folder.tabs = folder.tabs.map((t: any) => {
-            delete t.scheduledOpenTimes;
-            delete t.scheduledCloseTimes;
-            return t;
-          });
-          await db.saveSession(folder);
+          if (!folder.name) continue;
+          const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'ws-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+          const newFolder: WorkspaceSession = {
+            id: newId,
+            name: folder.name,
+            timestamp: Date.now() + count,
+            isPinned: false,
+            isLocked: false,
+            contextSummary: folder.contextSummary || 'Imported folder',
+            tabs: (folder.tabs || []).map((t: any) => ({
+              url: sanitizeUrl(t.url),
+              title: cleanTabTitle(t.title || t.url),
+              favIconUrl: t.favIconUrl || (t.url ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(t.url)}&sz=32` : undefined),
+              isStarred: !!t.isStarred
+            }))
+          };
+          delete newFolder.password;
+          delete newFolder.recoveryWord;
+          delete newFolder.scheduledOpenTimes;
+          delete newFolder.scheduledCloseTimes;
+          await db.saveSession(newFolder);
+          count++;
         }
         loadFolders();
-        showToast('Import Successful', `Successfully imported ${json.length} folders into your workspace.`, 'success');
+        chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
+        showToast('Import Successful', `Successfully imported ${count} folder${count !== 1 ? 's' : ''} into your workspace.`, 'success');
       } catch (err) {
         console.error("Import failed", err);
         showToast('Import Failed', 'The file might be corrupted or in an invalid format.', 'error');
@@ -2022,6 +2042,20 @@ Rules for the table:
               </button>
               <button 
                 disabled={selectedFolderIds.size === 0}
+                onClick={() => {
+                  const selectedFoldersList = folders.filter(f => selectedFolderIds.has(f.id));
+                  const allTabs = new Set(selectedFoldersList.flatMap(f => (f.tabs || []).map((t: any) => `${f.id}_${t.url}`)));
+                  setSelectedExportFolders(new Set(selectedFolderIds));
+                  setSelectedExportTabs(allTabs);
+                  setExpandedExportFolders(new Set());
+                  setShowExportModal(true);
+                }}
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 disabled:opacity-40 text-white transition-all border border-white/10 px-2.5 py-1.5 rounded-lg text-xs font-medium disabled:cursor-not-allowed"
+              >
+                <Upload className="w-3.5 h-3.5" /> Export Selected ({selectedFolderIds.size})
+              </button>
+              <button 
+                disabled={selectedFolderIds.size === 0}
                 onClick={() => setShowBulkDeleteModal(true)} 
                 className="flex items-center gap-1.5 bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:hover:bg-red-600 text-white transition-all shadow-md shadow-red-500/20 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:cursor-not-allowed"
               >
@@ -2212,7 +2246,7 @@ Rules for the table:
 
                     {/* Numbered Page Buttons */}
                     {totalPages <= 1 ? (
-                      <span className="min-w-8 h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/10 text-white/80 flex items-center justify-center border border-white/10 select-none">
+                      <span className="min-w-8 h-8 px-2.5 rounded-lg text-xs font-semibold bg-white/15 text-white flex items-center justify-center border border-white/20 select-none">
                         1
                       </span>
                     ) : (
@@ -2241,7 +2275,7 @@ Rules for the table:
                               onClick={() => setFolderPage(p as number)}
                               className={`min-w-8 h-8 px-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center ${
                                 isCurrent
-                                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-1 ring-white/20'
+                                  ? 'bg-white/15 text-white border border-white/20'
                                   : 'bg-white/[0.02] text-white/60 hover:text-white hover:bg-white/[0.08] border border-white/[0.06] hover:border-white/15'
                               }`}
                             >
@@ -2356,7 +2390,7 @@ Rules for the table:
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => {
                     const allFolders = new Set(folders.map(f => f.id));
-                    const allTabs = new Set(folders.flatMap(f => f.tabs.map((t: any) => `${f.id}_${t.url}`)));
+                    const allTabs = new Set(folders.flatMap(f => (f.tabs || []).map((t: any) => `${f.id}_${t.url}`)));
                     setSelectedExportFolders(allFolders);
                     setSelectedExportTabs(allTabs);
                   }} className="px-2 py-0.5 text-[10px] font-medium text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-md transition-colors">Select All</button>

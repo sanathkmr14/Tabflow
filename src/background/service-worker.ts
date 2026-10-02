@@ -199,6 +199,7 @@ async function handleMessage(message: any) {
   }
   if (message.type === 'DELETE_FOLDER') {
     await deleteSession(message.sessionId);
+    chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
     return { success: true };
   }
   if (message.type === 'ADD_TAB_TO_FOLDER') {
@@ -524,13 +525,14 @@ async function handleCreateFolder(name: string, tabs: any[]) {
   return withSessionLock(async () => {
     name = sanitizeFolderName(name);
     const session: WorkspaceSession = {
-      id: crypto.randomUUID(),
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'ws-' + Date.now(),
       name,
       timestamp: Date.now(),
       tabs: tabs.map(t => ({ url: t.url, title: t.title, favIconUrl: t.favIconUrl })),
       contextSummary: "Manually created folder"
     };
     await saveSession(session);
+    chrome.runtime.sendMessage({ type: 'REFRESH_FOLDERS' }).catch(() => {});
     return session;
   });
 }

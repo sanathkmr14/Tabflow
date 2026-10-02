@@ -116,9 +116,15 @@ if (typeof window !== 'undefined') {
               contextSummary: 'Created in Tabflow Web Preview',
             };
             await saveSession(newSession);
+            messageListeners.forEach(l => {
+              try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+            });
             response = { success: true, session: newSession };
           } else if (msg?.type === 'DELETE_FOLDER') {
             await deleteSession(msg.sessionId);
+            messageListeners.forEach(l => {
+              try { l({ type: 'REFRESH_FOLDERS' }, {}, () => {}); } catch {}
+            });
             response = { success: true };
           } else if (msg?.type === 'TOGGLE_PIN_FOLDER') {
             const sessions = await getSessions();
