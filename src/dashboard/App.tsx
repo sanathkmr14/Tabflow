@@ -817,6 +817,24 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
   const [showAddTabModal, setShowAddTabModal] = useState<string | null>(null);
   const [newTabName, setNewTabName] = useState('');
   const [newTabUrl, setNewTabUrl] = useState('');
+  const [openTabsForModal, setOpenTabsForModal] = useState<Array<{ id?: number; title?: string; url?: string; favIconUrl?: string }>>([]);
+
+  useEffect(() => {
+    if (showAddTabModal) {
+      if (typeof chrome !== 'undefined' && chrome.tabs?.query) {
+        chrome.tabs.query({ currentWindow: true }).then((tabs) => {
+          const valid = tabs.filter(t => t.url && isValidUrl(t.url) && !t.url.startsWith('chrome'));
+          setOpenTabsForModal(valid);
+        }).catch(() => {
+          setOpenTabsForModal([]);
+        });
+      } else {
+        setOpenTabsForModal([]);
+      }
+    } else {
+      setOpenTabsForModal([]);
+    }
+  }, [showAddTabModal]);
 
   const [showTimerModal, setShowTimerModal] = useState<{sessionId: string, type: 'folder'|'tab', url?: string} | null>(null);
   const [timerAction, setTimerAction] = useState<'open'|'close'>('close');
@@ -1000,6 +1018,28 @@ function FoldersView({ showToast }: { showToast: (title: string, description?: s
         showToast('Tab Already Exists', 'This tab is already in the folder.', 'error');
       } else {
         showToast('Tab Added', 'Successfully added tab to folder.', 'success');
+      }
+    });
+  };
+
+  const handleAddSpecificOpenTab = (tab: { title?: string; url?: string; favIconUrl?: string }) => {
+    if (!showAddTabModal || !tab.url) return;
+    const url = sanitizeUrl(tab.url);
+    if (!isValidUrl(url)) {
+      showToast('Invalid URL', 'This tab URL is not valid.', 'error');
+      return;
+    }
+    const title = cleanTabTitle(tab.title || url);
+    chrome.runtime.sendMessage({
+      type: 'ADD_TAB_TO_FOLDER',
+      sessionId: showAddTabModal,
+      tab: { title, url, favIconUrl: tab.favIconUrl }
+    }, (response) => {
+      loadFolders();
+      if (response && response.added === false) {
+        showToast('Tab Already Exists', 'This tab is already in the folder.', 'info');
+      } else {
+        showToast('Tab Added', `Added "${title}" to folder.`, 'success');
       }
     });
   };
@@ -2468,43 +2508,90 @@ Rules for the table:
         {showAddTabModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowAddTabModal(null)} className="fixed inset-0 bg-black/75 backdrop-blur-md" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90">
-              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08]">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 12 }} transition={{ duration: 0.18, ease: "easeOut" }} className="relative w-full max-w-[380px] max-h-[85vh] flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0e121a]/95 backdrop-blur-xl p-4.5 shadow-2xl shadow-black/90">
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-white/[0.08] shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-md bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
                     <Plus className="w-3.5 h-3.5" />
                   </div>
-                  <h3 className="text-xs font-semibold text-white tracking-tight">Add Tab</h3>
+                  <h3 className="text-xs font-semibold text-white tracking-tight">Add Tab to Folder</h3>
                 </div>
                 <button onClick={() => setShowAddTabModal(null)} className="w-6 h-6 rounded-md text-white/40 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              
-              <button onClick={submitScanTabs} className="w-full py-2 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 rounded-lg flex items-center justify-center gap-2 text-blue-400 text-xs font-medium transition-all mb-2.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Scan & Save All Open Tabs</span>
-              </button>
-              
-              <div className="relative flex items-center my-2.5">
-                <div className="flex-grow border-t border-white/5"></div>
-                <span className="flex-shrink-0 mx-2 text-white/30 text-[10px] font-semibold uppercase tracking-wider">or add manually</span>
-                <div className="flex-grow border-t border-white/5"></div>
+
+              <div className="overflow-y-auto space-y-3 pr-0.5 flex-1 select-none">
+                <button onClick={submitScanTabs} className="w-full py-2 bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 rounded-lg flex items-center justify-center gap-2 text-blue-400 text-xs font-medium transition-all">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Scan & Save All Open Tabs</span>
+                </button>
+
+                {openTabsForModal.length > 0 && (() => {
+                  const targetFolder = folders.find(f => f.id === showAddTabModal);
+                  return (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1.5 flex items-center justify-between">
+                        <span>Current Browser Tabs</span>
+                        <span className="text-[9px] text-white/30">{openTabsForModal.length} detected</span>
+                      </div>
+                      <div className="max-h-[140px] overflow-y-auto space-y-1 pr-1 rounded-lg border border-white/5 bg-black/20 p-1">
+                        {openTabsForModal.map((ot, oIdx) => {
+                          const isAlreadyInFolder = targetFolder?.tabs?.some(t => isSameUrl(t.url, ot.url));
+                          return (
+                            <div key={oIdx} className="flex items-center justify-between p-1.5 rounded-md hover:bg-white/5 group transition-colors">
+                              <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                                {ot.favIconUrl ? (
+                                  <img src={ot.favIconUrl} className="w-3.5 h-3.5 shrink-0 rounded-sm" />
+                                ) : (
+                                  <div className="w-3.5 h-3.5 shrink-0 bg-white/10 rounded-sm" />
+                                )}
+                                <span className="text-xs text-white/80 truncate font-medium" title={ot.url}>
+                                  {ot.title || ot.url}
+                                </span>
+                              </div>
+                              {isAlreadyInFolder ? (
+                                <span className="text-[10px] text-green-400 bg-green-400/10 px-2 py-0.5 rounded font-medium shrink-0 flex items-center gap-1">
+                                  <Check className="w-2.5 h-2.5" /> Added
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddSpecificOpenTab(ot)}
+                                  className="text-[10px] text-blue-400 bg-blue-500/15 hover:bg-blue-500/25 px-2 py-0.5 rounded font-semibold shrink-0 transition-colors flex items-center gap-1"
+                                >
+                                  <Plus className="w-2.5 h-2.5" /> Add
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="relative flex items-center my-2">
+                  <div className="flex-grow border-t border-white/5"></div>
+                  <span className="flex-shrink-0 mx-2 text-white/30 text-[10px] font-semibold uppercase tracking-wider">or add by url</span>
+                  <div className="flex-grow border-t border-white/5"></div>
+                </div>
+
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">Title (Optional)</label>
+                    <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50" placeholder="e.g. Documentation" value={newTabName} onChange={e => setNewTabName(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">URL</label>
+                    <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50" placeholder="e.g. google.com" value={newTabUrl} onChange={e => setNewTabUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newTabUrl.trim()) submitAddTabManually(); }} />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2.5">
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">Title (Optional)</label>
-                  <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50" placeholder="e.g. Documentation" value={newTabName} onChange={e => setNewTabName(e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-wider text-white/40 font-semibold mb-1 block">URL</label>
-                  <input type="text" className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 outline-none focus:border-blue-500/50" placeholder="e.g. google.com" value={newTabUrl} onChange={e => setNewTabUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newTabUrl.trim()) submitAddTabManually(); }} />
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 mt-3.5 pt-2.5 border-t border-white/[0.08]">
-                <button onClick={() => setShowAddTabModal(null)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
-                <button onClick={submitAddTabManually} disabled={!newTabUrl.trim()} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 disabled:opacity-40">Add Tab</button>
+              <div className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-white/[0.08] shrink-0">
+                <button onClick={() => setShowAddTabModal(null)} className="px-3.5 py-1.5 hover:bg-white/5 rounded-lg text-xs font-medium text-white/70 hover:text-white transition-colors">Close</button>
+                <button onClick={submitAddTabManually} disabled={!newTabUrl.trim()} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white rounded-lg text-xs font-semibold transition-all shadow-md shadow-blue-500/25 disabled:opacity-40">Add by URL</button>
               </div>
             </motion.div>
           </div>
